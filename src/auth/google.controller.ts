@@ -1,12 +1,14 @@
 import { Router } from "express";
 import "dotenv/config";
-import jwt from "jsonwebtoken";
+import * as jwt from "jsonwebtoken";
+
 import { exchangeGoogleCode } from "./google.service";
 
 const router = Router();
 
 router.get("/", (req, res) => {
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  console.log("AUTH_URL:", authUrl.toString());
 
   authUrl.searchParams.append(
     "client_id",
@@ -28,6 +30,9 @@ router.get("/", (req, res) => {
 
 
 router.get("/callback", async (req, res) => {
+  console.log("CALLBACK ROUTE HIT");
+  console.log("QUERY:", req.query);
+
   try {
     const code = typeof req.query.code === "string" ? req.query.code : "";
     if (!code) {
@@ -50,12 +55,13 @@ router.get("/callback", async (req, res) => {
     res.cookie("access_token", token, {
       httpOnly: true,
       sameSite: "lax",
-      secure: false,
+      secure: false, // local
       path: "/",
     });
 
     res.redirect(process.env.FRONTEND_REDIRECT_URL!);
   } catch (error) {
+    console.error("AUTH ERROR:", error);
     res.status(500).send("Authentication failed");
   }
 });

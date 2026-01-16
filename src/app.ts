@@ -1,5 +1,8 @@
 import express from "express";
 import googleAuthRouter from "./auth/google.controller";
+import "dotenv/config";
+
+console.log("🔥 APP.TS LOADED 🔥");
 
 const app = express();
 
