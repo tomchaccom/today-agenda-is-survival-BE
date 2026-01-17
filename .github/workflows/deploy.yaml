@@ -30,21 +30,31 @@ jobs:
           ls -al
           ls -al dist
 
-      # ✅ rsync deployments action (GitHub Runner -> EC2로 전송)
-      - name: Deploy to EC2 with rsync
+      # 1️⃣ dist만 rsync (정석)
+      - name: Deploy dist to EC2
         uses: Burnett01/rsync-deployments@v8
         with:
           switches: -avz --delete
-          path: |
-            dist
-            package.json
-            package-lock.json
-            ecosystem.config.js
+          path: dist
           remote_path: /home/ubuntu/server
           remote_host: ${{ secrets.EC2_HOST }}
           remote_user: ${{ secrets.EC2_USER }}
           remote_key: ${{ secrets.EC2_SSH_KEY }}
 
+      # 2️⃣ 설정 파일은 ssh로 이동
+      - name: Upload config files
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/server
+            cp ~/server/package.json . || true
+            cp ~/server/package-lock.json . || true
+            cp ~/server/ecosystem.config.js . || true
+
+      # 3️⃣ PM2 재시작
       - name: Restart server with PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
