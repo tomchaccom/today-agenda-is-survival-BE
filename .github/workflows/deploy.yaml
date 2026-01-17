@@ -20,26 +20,30 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      # 3️⃣ 의존성
+      # 3️⃣ 의존성 설치
       - name: Install dependencies
         run: npm ci
 
-      # 4️⃣ TypeScript 빌드 (🔥 여기서만!)
+      # 4️⃣ TypeScript 빌드
       - name: Build
         run: npm run build
 
-      # 5️⃣ dist + ecosystem 서버로 복사
+      # 🔍 (선택) 빌드 결과 확인 — 문제 생기면 이 로그로 바로 원인 추적
+      - name: Debug build output
+        run: |
+          pwd
+          ls -al
+          ls -al dist
+
+      # 5️⃣ dist + 설정 파일 EC2로 복사
       - name: Copy build files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: |
-            dist
-            package.json
-            package-lock.json
-            ecosystem.config.js
+          # ⚠️ 핵심: 반드시 한 줄 문자열
+          source: "dist package.json package-lock.json ecosystem.config.js"
           target: "/home/ubuntu/server"
 
       # 6️⃣ PM2 ecosystem 기준 재시작
