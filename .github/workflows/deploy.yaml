@@ -1,0 +1,56 @@
+name: Node Server CI/CD
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ 코드 가져오기
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2️⃣ Node 환경
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # 3️⃣ 의존성
+      - name: Install dependencies
+        run: npm ci
+
+      # 4️⃣ TypeScript 빌드 (🔥 여기서만!)
+      - name: Build
+        run: npm run build
+
+      # 5️⃣ dist + ecosystem 서버로 복사
+      - name: Copy build files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: |
+            dist
+            package.json
+            package-lock.json
+            ecosystem.config.js
+          target: "/home/ubuntu/server"
+
+      # 6️⃣ PM2 ecosystem 기준 재시작
+      - name: Restart server with PM2 (ecosystem)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd /home/ubuntu/server
+            npm ci --omit=dev
+            pm2 reload ecosystem.config.js || pm2 start ecosystem.config.js
+            pm2 save
