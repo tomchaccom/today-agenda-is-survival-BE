@@ -1,11 +1,19 @@
 import { supabase } from "../supabase/supabase.client";
 
+/**
+ * =========================
+ * Types
+ * =========================
+ */
+
+export type RoomStatus = "waiting" | "playing" | "resolved";
+
 export type Room = {
   id: string;
   host_user_id: string;
-  status: "waiting" | "playing" | "resolved";
+  status: RoomStatus;
   capacity: number;
-  current_qnum: number | null;
+  current_qnum: number;
   created_at: string;
   resolved_at: string | null;
 };
@@ -13,8 +21,15 @@ export type Room = {
 export type RoomPlayer = {
   room_id: string;
   user_id: string;
+  nickname: string;
   joined_at: string;
 };
+
+/**
+ * =========================
+ * Rooms
+ * =========================
+ */
 
 export const insertRoom = async (
   hostUserId: string,
@@ -26,34 +41,14 @@ export const insertRoom = async (
       host_user_id: hostUserId,
       status: "waiting",
       capacity,
-      current_qnum: null,
+      current_qnum: 1, // 🔒 NOT NULL 제약 대응
     })
     .select(
       "id,host_user_id,status,capacity,current_qnum,created_at,resolved_at"
     )
     .single();
 
-  if (error) {
-    throw error;
-  }
-
-  return data;
-};
-
-export const insertRoomPlayer = async (
-  roomId: string,
-  userId: string
-): Promise<RoomPlayer> => {
-  const { data, error } = await supabase
-    .from("room_players")
-    .insert({ room_id: roomId, user_id: userId })
-    .select("room_id,user_id,joined_at")
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data;
 };
 
@@ -68,59 +63,8 @@ export const fetchRoomById = async (
     .eq("id", roomId)
     .maybeSingle();
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data;
-};
-
-export const fetchRoomPlayer = async (
-  roomId: string,
-  userId: string
-): Promise<RoomPlayer | null> => {
-  const { data, error } = await supabase
-    .from("room_players")
-    .select("room_id,user_id,joined_at")
-    .eq("room_id", roomId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-};
-
-export const countRoomPlayers = async (
-  roomId: string
-): Promise<number> => {
-  const { count, error } = await supabase
-    .from("room_players")
-    .select("user_id", { count: "exact", head: true })
-    .eq("room_id", roomId);
-
-  if (error) {
-    throw error;
-  }
-
-  return count ?? 0;
-};
-
-export const listRoomPlayers = async (
-  roomId: string
-): Promise<RoomPlayer[]> => {
-  const { data, error } = await supabase
-    .from("room_players")
-    .select("room_id,user_id,joined_at")
-    .eq("room_id", roomId);
-
-  if (error) {
-    throw error;
-  }
-
-  return data ?? [];
 };
 
 export const updateRoomToPlaying = async (
@@ -128,17 +72,17 @@ export const updateRoomToPlaying = async (
 ): Promise<Room | null> => {
   const { data, error } = await supabase
     .from("rooms")
-    .update({ status: "playing", current_qnum: 1 })
+    .update({
+      status: "playing",
+      current_qnum: 1,
+    })
     .eq("id", roomId)
     .eq("status", "waiting")
     .select(
       "id,host_user_id,status,capacity,current_qnum,created_at,resolved_at"
     );
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data?.[0] ?? null;
 };
 
@@ -148,7 +92,9 @@ export const updateRoomAdvanceQuestion = async (
 ): Promise<Room | null> => {
   const { data, error } = await supabase
     .from("rooms")
-    .update({ current_qnum: currentQnum + 1 })
+    .update({
+      current_qnum: currentQnum + 1,
+    })
     .eq("id", roomId)
     .eq("status", "playing")
     .eq("current_qnum", currentQnum)
@@ -156,10 +102,7 @@ export const updateRoomAdvanceQuestion = async (
       "id,host_user_id,status,capacity,current_qnum,created_at,resolved_at"
     );
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data?.[0] ?? null;
 };
 
@@ -180,9 +123,70 @@ export const updateRoomResolved = async (
       "id,host_user_id,status,capacity,current_qnum,created_at,resolved_at"
     );
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return data?.[0] ?? null;
+};
+
+/**
+ * =========================
+ * Room Players
+ * =========================
+ */
+
+export const insertRoomPlayer = async (
+  roomId: string,
+  userId: string,
+  nickname: string
+): Promise<RoomPlayer> => {
+  const { data, error } = await supabase
+    .from("room_players")
+    .insert({
+      room_id: roomId,
+      user_id: userId,
+      nickname, // 🔒 NOT NULL 제약 대응
+    })
+    .select("room_id,user_id,nickname,joined_at")
+    .single();
+
+  if (error) throw error;
+  return data;
+};
+
+export const fetchRoomPlayer = async (
+  roomId: string,
+  userId: string
+): Promise<RoomPlayer | null> => {
+  const { data, error } = await supabase
+    .from("room_players")
+    .select("room_id,user_id,nickname,joined_at")
+    .eq("room_id", roomId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+};
+
+export const listRoomPlayers = async (
+  roomId: string
+): Promise<RoomPlayer[]> => {
+  const { data, error } = await supabase
+    .from("room_players")
+    .select("room_id,user_id,nickname,joined_at")
+    .eq("room_id", roomId);
+
+  if (error) throw error;
+  return data ?? [];
+};
+
+export const countRoomPlayers = async (
+  roomId: string
+): Promise<number> => {
+  const { count, error } = await supabase
+    .from("room_players")
+    .select("user_id", { count: "exact", head: true })
+    .eq("room_id", roomId);
+
+  if (error) throw error;
+  return count ?? 0;
 };

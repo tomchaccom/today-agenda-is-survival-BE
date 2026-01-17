@@ -42,20 +42,26 @@ const ensureRoomAccess = async (
 
 export const createRoom = async (
   userId: string,
-  capacity: number
+  capacity: number,
+  nickname: string
 ): Promise<Room> => {
   if (!ALLOWED_CAPACITIES.has(capacity)) {
     throw new HttpError(422, "Invalid capacity");
   }
 
   const room = await insertRoom(userId, capacity);
-  await insertRoomPlayer(room.id, userId);
+
+  // ⭐ host도 room_player로 들어가며 nickname 필수
+  await insertRoomPlayer(room.id, userId, nickname);
+
   return room;
 };
 
+
 export const joinRoom = async (
   roomId: string,
-  userId: string
+  userId: string,
+  nickname: string
 ): Promise<RoomPlayer> => {
   const room = await ensureRoomExists(roomId);
 
@@ -74,7 +80,7 @@ export const joinRoom = async (
   }
 
   try {
-    return await insertRoomPlayer(roomId, userId);
+    return await insertRoomPlayer(roomId, userId, nickname);
   } catch (error) {
     const pgError = error as PostgrestError;
     if (pgError?.code === "23505") {
@@ -83,6 +89,7 @@ export const joinRoom = async (
     throw error;
   }
 };
+
 
 export const startRoom = async (
   roomId: string,

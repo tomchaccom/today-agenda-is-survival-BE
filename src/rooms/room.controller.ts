@@ -12,10 +12,22 @@ import {
 
 const router = Router();
 
+// POST /rooms
 router.post("/", requireAuth, async (req, res) => {
   try {
     const capacity = Number(req.body?.capacity);
-    const room = await createRoom(req.user!.userId, capacity);
+    const nickname = req.body?.nickname;
+
+    if (!nickname || typeof nickname !== "string") {
+      return res.status(422).json({ error: "nickname is required" });
+    }
+
+    const room = await createRoom(
+      req.user!.userId,
+      capacity,
+      nickname
+    );
+
     res.status(201).json({ room });
   } catch (error) {
     const status =
@@ -24,12 +36,22 @@ router.post("/", requireAuth, async (req, res) => {
   }
 });
 
+
+// POST /rooms/:roomId/join
 router.post("/:roomId/join", requireAuth, async (req, res) => {
   try {
+    const nickname = req.body?.nickname;
+
+    if (!nickname || typeof nickname !== "string") {
+      return res.status(422).json({ error: "nickname is required" });
+    }
+
     const player = await joinRoom(
       req.params.roomId,
-      req.user!.userId
+      req.user!.userId,
+      nickname
     );
+
     res.status(201).json({ player });
   } catch (error) {
     const status =
@@ -37,6 +59,7 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
     res.status(status).json({ error: (error as Error).message });
   }
 });
+
 
 router.post("/:roomId/start", requireAuth, async (req, res) => {
   try {
