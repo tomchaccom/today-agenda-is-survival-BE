@@ -30,3 +30,7 @@ supabase/config.toml # (선택사항: 프로젝트 팀 정책에 따라 공유�
 # 7. IDE 설정 (VSCode 등 - 개인 설정 제외)
 .vscode/
 .idea/
+
+# pm2 / server-only config
+ecosystem.config.js
+.env
