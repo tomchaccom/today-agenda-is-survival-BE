@@ -1,7 +1,7 @@
 import { PostgrestError } from "@supabase/supabase-js";
 
 import { NormalizedGoogleUser } from "./google.service";
-import { supabase } from "../supabase/supabase.client";
+import { supabaseAdmin } from "../supabase/supabase.client";
 import { JwtPayload, signAccessToken, signRefreshToken } from "./jwt.util";
 
 export type AuthTokens = {
@@ -22,12 +22,13 @@ const toJwtPayload = (user: DbUser): JwtPayload => ({
   userId: user.id,
   email: user.email,
   provider: "google",
+  role: "authenticated",
 });
 
 const fetchUserByEmail = async (
   email: string
 ): Promise<DbUser | null> => {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("users")
     .select("id,email,provider,provider_user_id,name,created_at")
     .eq("email", email)
@@ -43,7 +44,7 @@ const fetchUserByEmail = async (
 const createUser = async (
   user: NormalizedGoogleUser
 ): Promise<DbUser> => {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("users")
     .insert({
       email: user.email,
