@@ -1,19 +1,15 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
-import { JwtPayload } from "../auth/jwt.util";
 import { verifyAccessToken } from "../auth/jwt.util";
 
-
-export type AuthenticatedRequest = Request & {
-  user?: JwtPayload;
-};
-
 export const requireAuth = (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const authHeader = req.headers.authorization;
+  const rawAuth = req.headers.authorization;
+  const authHeader =
+    typeof rawAuth === "string" ? rawAuth : undefined;
   if (!authHeader?.startsWith("Bearer ")) {
     res.status(401).json({ error: "Missing Bearer token" });
     return;
@@ -26,7 +22,9 @@ export const requireAuth = (
   }
 
   try {
-    req.user = verifyAccessToken(token);
+    const payload = verifyAccessToken(token);
+    req.user = { userId: payload.userId, email: payload.email };
+    req.authToken = token;
     next();
   } catch (error) {
     const message =

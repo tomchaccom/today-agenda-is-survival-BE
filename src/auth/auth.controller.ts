@@ -3,6 +3,7 @@ import "dotenv/config";
 
 import { exchangeGoogleCode } from "./google.service";
 import { issueTokens } from "./auth.service";
+import type { AuthUser } from "./auth.service";
 
 const router = Router();
 const isProd = process.env.NODE_ENV === "production";
@@ -112,22 +113,22 @@ router.get("/google", (req, res) => {
  */
 router.get("/google/callback", async (req, res) => {
   try {
-    const code = typeof req.query.code === "string" ? req.query.code : "";
-    if (!code) {
-      res.status(400).send("Missing authorization code");
-      return;
+    const code = req.query.code;
+
+    // ✅ query string 타입 가드 (TS + 런타임 안전)
+    if (typeof code !== "string") {
+      return res.status(400).json({ error: "Invalid authorization code" });
     }
 
+    // ✅ 이제 code는 string
     const googleUser = await exchangeGoogleCode(code);
 
-    const authUser = {
-      id: googleUser.email,
+    const authUser: AuthUser = {
+      id: googleUser.email, // ← 너 프로젝트 기준
       email: googleUser.email,
     };
-    
+
     const { accessToken, refreshToken } = await issueTokens(authUser);
-    
-    
 
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
@@ -147,5 +148,6 @@ router.get("/google/callback", async (req, res) => {
     res.status(500).send("Authentication failed");
   }
 });
+
 
 export default router;
