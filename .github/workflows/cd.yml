@@ -44,4 +44,4 @@ jobs:
           script: |
             cd ~/server
             npm ci --omit=dev
-            pm2 reload api-server || pm2 start dist/app.js --name api-server
+            pm2 reload api-server || pm2 start dist/server.js --name api-server
