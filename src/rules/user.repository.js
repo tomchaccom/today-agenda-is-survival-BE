@@ -1,3 +1,4 @@
+"use strict";
 /**
  * FILE RESPONSIBILITY:
  * - Query and persist users in Supabase Postgres
