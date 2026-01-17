@@ -1,46 +1,41 @@
 import express from "express";
-import authRouter from "./auth/auth.controller";
-import roomRouter from "./rooms/room.controller";
-import gameRouter from "./game/game.controller";
-import swaggerUi from 'swagger-ui-express';
+import cors from "cors";
+import swaggerUi from "swagger-ui-express";
+import googleAuthRouter from "./auth/google.controller";
 import "dotenv/config";
 import cors from "cors";
+
+const { swaggerSpec } = require("./docs/swagger");
 
 console.log("🔥 APP.TS LOADED 🔥");
 
 const app = express();
 
+// middleware
 app.use(express.json());
-const { swaggerSpec } = require('./docs/swagger');
+app.use(
+  cors({
+    origin: "http://localhost:3000", // 운영 시 도메인으로 변경
+    credentials: true,
+  })
+);
 
 // Swagger UI
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-app.use(cors({
-  origin: "http://localhost:3000", // 👈 프론트엔드 개발 서버 주소 (React Vite라면 보통 5173, CRA라면 3000)
-  credentials: true, // 쿠키 주고받기 허용
-}));
-
-// OpenAPI JSON (문서 추출용)
-app.get('/api-docs.json', (req, res) => {
+// OpenAPI JSON
+app.get("/api-docs.json", (req, res) => {
   res.json(swaggerSpec);
 });
 
-app.listen(4000, () => {
-  console.log('Server running on port 4000');
-  console.log('Swagger UI: http://localhost:4000/api-docs');
-  console.log('Swagger JSON: http://localhost:4000/api-docs.json');
-});
-
+// Health Check
 app.get("/health", (req, res) => {
   res.send("ok");
 });
 
-app.use("/auth", authRouter);
-app.use("/rooms", roomRouter);
-app.use("/rooms", gameRouter);
+// Routes
+app.use("/auth/google", googleAuthRouter);
 
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// ⚠️ listen은 여기서 하지 않는다 (CI 안정성)
+// 서버 실행은 server.ts 또는 pm2에서 담당
+export default app;
