@@ -24,12 +24,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      # 🔥 핵심: 배포용 디렉토리 생성
+      # ✅ 배포용 디렉토리 (코드만)
       - name: Prepare deploy directory
         run: |
           mkdir deploy
           cp -r dist deploy/
-          cp package.json package-lock.json ecosystem.config.js deploy/
+          cp package.json package-lock.json deploy/
           ls -al deploy
 
       - name: Deploy to EC2
@@ -42,7 +42,7 @@ jobs:
           remote_user: ${{ secrets.EC2_USER }}
           remote_key: ${{ secrets.EC2_SSH_KEY }}
 
-      - name: Restart server with PM2
+      - name: Reload server with PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -51,6 +51,5 @@ jobs:
           script: |
             cd /home/ubuntu/server
             npm ci --omit=dev
-            pm2 delete api-server || true
-            pm2 start ecosystem.config.js
+            pm2 reload ecosystem.config.js
             pm2 save
