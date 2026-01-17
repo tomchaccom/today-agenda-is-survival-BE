@@ -1,5 +1,7 @@
 import express from "express";
-import googleAuthRouter from "./auth/google.controller";
+import authRouter from "./auth/auth.controller";
+import roomRouter from "./rooms/room.controller";
+import voteRouter from "./votes/vote.controller";
 import "dotenv/config";
 
 console.log("🔥 APP.TS LOADED 🔥");
@@ -12,7 +14,9 @@ app.get("/health", (req, res) => {
   res.send("ok");
 });
 
-app.use("/auth/google", googleAuthRouter);
+app.use("/auth", authRouter);
+app.use("/rooms", roomRouter);
+app.use("/rooms", voteRouter);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {

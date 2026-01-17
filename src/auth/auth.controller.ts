@@ -1,14 +1,15 @@
 import { Router } from "express";
 import "dotenv/config";
-import * as jwt from "jsonwebtoken";
 
 import { exchangeGoogleCode } from "./google.service";
+import { issueTokens } from "./auth.service";
 
 const router = Router();
 
-router.get("/", (req, res) => {
+const isProd = process.env.NODE_ENV === "production";
+
+router.get("/google", (req, res) => {
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  console.log("AUTH_URL:", authUrl.toString());
 
   authUrl.searchParams.append(
     "client_id",
@@ -23,16 +24,10 @@ router.get("/", (req, res) => {
   authUrl.searchParams.append("access_type", "offline");
   authUrl.searchParams.append("prompt", "consent");
 
-  console.log("AUTH_URL:", authUrl.toString());
-
   res.redirect(authUrl.toString());
 });
 
-
-router.get("/callback", async (req, res) => {
-  console.log("CALLBACK ROUTE HIT");
-  console.log("QUERY:", req.query);
-
+router.get("/google/callback", async (req, res) => {
   try {
     const code = typeof req.query.code === "string" ? req.query.code : "";
     if (!code) {
@@ -41,25 +36,21 @@ router.get("/callback", async (req, res) => {
     }
 
     const user = await exchangeGoogleCode(code);
+    const { accessToken, refreshToken } = await issueTokens(user);
 
-    const token = jwt.sign(
-      {
-        userId: user.providerId,
-        email: user.email,
-        provider: user.provider,
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: "1h" }
-    );
-
-    res.cookie("access_token", token, {
+    res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
       sameSite: "lax",
-      secure: false, // local
+      secure: isProd,
       path: "/",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.redirect(process.env.FRONTEND_REDIRECT_URL!);
+    res.status(200).json({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      token_type: "Bearer",
+    });
   } catch (error) {
     console.error("AUTH ERROR:", error);
     res.status(500).send("Authentication failed");
