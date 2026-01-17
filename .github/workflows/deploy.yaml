@@ -9,48 +9,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ 코드 체크아웃
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2️⃣ Node 설정
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
-      # 3️⃣ 의존성 설치
       - name: Install dependencies
         run: npm ci
 
-      # 4️⃣ TypeScript 빌드
       - name: Build
         run: npm run build
 
-      # 5️⃣ 빌드 결과 확인 (디버그용, 안정되면 삭제 가능)
-      - name: Debug build output
+      # 🔥 핵심: 배포용 디렉토리 생성
+      - name: Prepare deploy directory
         run: |
-          pwd
-          ls -al
-          ls -al dist
+          mkdir deploy
+          cp -r dist deploy/
+          cp package.json package-lock.json ecosystem.config.js deploy/
+          ls -al deploy
 
-      # 6️⃣ 🔥 rsync로 서버 배포 (ecosystem 포함)
       - name: Deploy to EC2
         uses: Burnett01/rsync-deployments@v8
         with:
           switches: -avz --delete
-          path: |
-            dist
-            ecosystem.config.js
-            package.json
-            package-lock.json
+          path: deploy/
           remote_path: /home/ubuntu/server
           remote_host: ${{ secrets.EC2_HOST }}
           remote_user: ${{ secrets.EC2_USER }}
           remote_key: ${{ secrets.EC2_SSH_KEY }}
 
-      # 7️⃣ PM2 ecosystem 기준 재시작
       - name: Restart server with PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
