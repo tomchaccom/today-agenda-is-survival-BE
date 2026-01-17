@@ -3,6 +3,7 @@ import cors from "cors";
 import swaggerUi from "swagger-ui-express";
 import googleAuthRouter from "./auth/google.controller";
 import "dotenv/config";
+import cors from "cors";
 
 const { swaggerSpec } = require("./docs/swagger");
 
