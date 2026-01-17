@@ -1,32 +1,41 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
 
-import { JwtPayload, verifyAccessToken } from "./jwt.util";
+import { verifyAccessToken } from "./jwt.util";
 
-export type AuthenticatedRequest = Request & {
-  user?: JwtPayload;
-  authToken?: string;
-};
-
+/**
+ * 인증 미들웨어
+ * - Express Request 자체를 확장해서 사용 (AuthenticatedRequest ❌)
+ */
 export const requireAuth = (
-  req: AuthenticatedRequest,
+  req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const authHeader = req.headers.authorization;
+  const rawAuth = req.headers.authorization;
+  const authHeader =
+    typeof rawAuth === "string" ? rawAuth : undefined;
+
   if (!authHeader?.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Missing Bearer token" });
-    return;
+    return res.status(401).json({ error: "Missing Bearer token" });
   }
 
   const token = authHeader.slice("Bearer ".length).trim();
   if (!token) {
-    res.status(401).json({ error: "Missing Bearer token" });
-    return;
+    return res.status(401).json({ error: "Missing Bearer token" });
   }
 
   try {
-    req.user = verifyAccessToken(token);
+    const payload = verifyAccessToken(token);
+
+    // ✅ express.d.ts 에서 확장한 Request.user 사용
+    req.user = {
+      userId: payload.userId,
+      email: payload.email,
+      provider: payload.provider,
+      role: payload.role,
+    };
+
     req.authToken = token;
     next();
   } catch (error) {
@@ -34,6 +43,7 @@ export const requireAuth = (
       error instanceof jwt.TokenExpiredError
         ? "Access token expired"
         : "Invalid access token";
-    res.status(401).json({ error: message });
+
+    return res.status(401).json({ error: message });
   }
 };

@@ -3,11 +3,59 @@ import "dotenv/config";
 
 import { exchangeGoogleCode } from "./google.service";
 import { issueTokens } from "./auth.service";
+import type { AuthUser } from "./auth.service";
 
 const router = Router();
-
 const isProd = process.env.NODE_ENV === "production";
 
+/**
+ * @swagger
+ * tags:
+ *   name: Auth
+ *   description: 인증 및 토큰 발급 API
+ */
+
+/**
+ * @swagger
+ * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
+ *
+ *   schemas:
+ *     AuthTokenResponse:
+ *       type: object
+ *       properties:
+ *         access_token:
+ *           type: string
+ *           description: JWT Access Token
+ *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *         refresh_token:
+ *           type: string
+ *           description: JWT Refresh Token (also set as HttpOnly cookie)
+ *           example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+ *         token_type:
+ *           type: string
+ *           example: Bearer
+ */
+
+/**
+ * @swagger
+ * /auth/google:
+ *   get:
+ *     summary: Google OAuth 로그인 시작
+ *     description: |
+ *       Google OAuth 인증 페이지로 리다이렉트한다.
+ *
+ *       **이 API는 브라우저에서 직접 호출해야 하며**
+ *       Swagger의 Try it out 용도가 아니다.
+ *     tags: [Auth]
+ *     responses:
+ *       302:
+ *         description: Google OAuth 인증 페이지로 리다이렉트
+ */
 router.get("/google", (req, res) => {
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
 
@@ -27,16 +75,60 @@ router.get("/google", (req, res) => {
   res.redirect(authUrl.toString());
 });
 
+/**
+ * @swagger
+ * /auth/google/callback:
+ *   get:
+ *     summary: Google OAuth 콜백 및 JWT 발급
+ *     description: |
+ *       Google OAuth 인증 후 전달된 `code`를 이용해
+ *       사용자 정보를 조회하고 JWT 토큰을 발급한다.
+ *
+ *       - Refresh Token은 HttpOnly Cookie로 설정된다.
+ *       - Access Token은 응답 Body로 반환된다.
+ *     tags: [Auth]
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Google OAuth Authorization Code
+ *     responses:
+ *       200:
+ *         description: JWT 토큰 발급 성공
+ *         headers:
+ *           Set-Cookie:
+ *             description: refresh_token HttpOnly Cookie
+ *             schema:
+ *               type: string
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/AuthTokenResponse'
+ *       400:
+ *         description: Authorization code 누락
+ *       500:
+ *         description: 인증 실패
+ */
 router.get("/google/callback", async (req, res) => {
   try {
-    const code = typeof req.query.code === "string" ? req.query.code : "";
-    if (!code) {
-      res.status(400).send("Missing authorization code");
-      return;
+    const code = req.query.code;
+
+    // ✅ query string 타입 가드 (TS + 런타임 안전)
+    if (typeof code !== "string") {
+      return res.status(400).json({ error: "Invalid authorization code" });
     }
 
-    const user = await exchangeGoogleCode(code);
-    const { accessToken, refreshToken } = await issueTokens(user);
+    // ✅ 이제 code는 string
+    const googleUser = await exchangeGoogleCode(code);
+
+    const authUser: AuthUser = {
+      id: googleUser.email, // ← 너 프로젝트 기준
+      email: googleUser.email,
+    };
+
+    const { accessToken, refreshToken } = await issueTokens(authUser);
 
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
@@ -56,5 +148,6 @@ router.get("/google/callback", async (req, res) => {
     res.status(500).send("Authentication failed");
   }
 });
+
 
 export default router;

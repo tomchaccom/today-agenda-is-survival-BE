@@ -14,6 +14,7 @@ import {
   GamePhase,
   GameState,
   LeaderVote,
+  Player,
   applyChapterResolution,
   applyFinalResolution,
   countChapterVotes,
