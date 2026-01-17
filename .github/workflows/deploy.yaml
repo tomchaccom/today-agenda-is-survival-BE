@@ -9,35 +9,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ 코드 가져오기
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2️⃣ Node 설정
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
-      # 3️⃣ 의존성 설치
       - name: Install dependencies
         run: npm ci
 
-      # 4️⃣ 빌드
       - name: Build
         run: npm run build
 
-      # 🔍 빌드 결과 확인
       - name: Debug build output
         run: |
           pwd
           ls -al
           ls -al dist
 
-      # 5️⃣ rsync로 EC2에 배포 (🔥 핵심)
       - name: Deploy to EC2 with rsync
-        uses: burnett01/rsync-deployments@v7
+        uses: burnett01/rsync-deployments@v5.2
         with:
           switches: -avz --delete
           path: |
@@ -50,7 +44,6 @@ jobs:
           remote_user: ${{ secrets.EC2_USER }}
           remote_key: ${{ secrets.EC2_SSH_KEY }}
 
-      # 6️⃣ PM2 재시작
       - name: Restart server with PM2
         uses: appleboy/ssh-action@v1.0.3
         with:
