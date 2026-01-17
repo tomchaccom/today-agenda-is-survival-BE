@@ -10,14 +10,29 @@ const getEnv = (key: string): string => {
 
 const supabaseUrl = getEnv("SUPABASE_URL");
 const serviceRoleKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
+const anonKey = getEnv("SUPABASE_ANON_KEY");
 
-export const supabase: SupabaseClient = createClient(
+const baseOptions = {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+};
+
+export const supabaseAdmin: SupabaseClient = createClient(
   supabaseUrl,
   serviceRoleKey,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
+  baseOptions
 );
+
+export const createUserClient = (
+  jwt: string
+): SupabaseClient =>
+  createClient(supabaseUrl, anonKey, {
+    ...baseOptions,
+    global: {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+      },
+    },
+  });

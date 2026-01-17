@@ -4,6 +4,7 @@ export type JwtPayload = {
   userId: string;
   email: string;
   provider: "google";
+  role: "authenticated";
 };
 
 const getEnv = (key: string): string => {
@@ -21,12 +22,14 @@ export const signAccessToken = (payload: JwtPayload): string =>
   jwt.sign(payload, getEnv("JWT_ACCESS_SECRET"), {
     expiresIn: ACCESS_EXPIRES_IN,
     subject: payload.userId,
+    audience: "authenticated",
   });
 
 export const signRefreshToken = (payload: JwtPayload): string =>
   jwt.sign(payload, getEnv("JWT_REFRESH_SECRET"), {
     expiresIn: REFRESH_EXPIRES_IN,
     subject: payload.userId,
+    audience: "authenticated",
   });
 
 export const verifyAccessToken = (token: string): JwtPayload =>

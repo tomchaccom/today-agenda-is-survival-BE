@@ -7,7 +7,6 @@ import {
   getRoom,
   getRoomPlayers,
   joinRoom,
-  startRoom,
 } from "./room.service";
 
 const router = Router();
@@ -33,7 +32,7 @@ const router = Router();
  *           example: "tom"
  *         capacity:
  *           type: number
- *           example: 6
+ *           example: 5
  *
  *     JoinRoomRequest:
  *       type: object
@@ -49,20 +48,29 @@ const router = Router();
  *       properties:
  *         id:
  *           type: string
- *           example: "room_123"
+ *           example: "room-uuid"
+ *         host_user_id:
+ *           type: string
+ *           example: "user-uuid"
  *         status:
  *           type: string
  *           example: "WAITING"
+ *         capacity:
+ *           type: number
+ *           example: 5
  *
  *     Player:
  *       type: object
  *       properties:
- *         userId:
+ *         user_id:
  *           type: string
  *           example: "user_abc"
  *         nickname:
  *           type: string
  *           example: "tom"
+ *         influence_score:
+ *           type: number
+ *           example: 0.2
  */
 
 /**
@@ -105,6 +113,7 @@ router.post("/", requireAuth, async (req, res) => {
     }
 
     const room = await createRoom(
+      req.authToken!,
       req.user!.userId,
       capacity,
       nickname
@@ -164,56 +173,13 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
     }
 
     const player = await joinRoom(
+      req.authToken!,
       req.params.roomId,
       req.user!.userId,
       nickname
     );
 
     res.status(201).json({ player });
-  } catch (error) {
-    const status =
-      error instanceof HttpError ? error.status : 500;
-    res.status(status).json({ error: (error as Error).message });
-  }
-});
-
-/**
- * @swagger
- * /rooms/{roomId}/start:
- *   post:
- *     summary: 방 시작
- *     description: 방장이 게임/회의를 시작한다.
- *     tags: [Rooms]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: roomId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: 방 시작 성공
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 room:
- *                   $ref: '#/components/schemas/Room'
- *       403:
- *         description: 방장만 시작 가능
- *       401:
- *         description: 인증 필요
- */
-router.post("/:roomId/start", requireAuth, async (req, res) => {
-  try {
-    const room = await startRoom(
-      req.params.roomId,
-      req.user!.userId
-    );
-    res.status(200).json({ room });
   } catch (error) {
     const status =
       error instanceof HttpError ? error.status : 500;
@@ -254,6 +220,7 @@ router.post("/:roomId/start", requireAuth, async (req, res) => {
 router.get("/:roomId", requireAuth, async (req, res) => {
   try {
     const room = await getRoom(
+      req.authToken!,
       req.params.roomId,
       req.user!.userId
     );
@@ -298,6 +265,7 @@ router.get("/:roomId", requireAuth, async (req, res) => {
 router.get("/:roomId/players", requireAuth, async (req, res) => {
   try {
     const players = await getRoomPlayers(
+      req.authToken!,
       req.params.roomId,
       req.user!.userId
     );

@@ -5,6 +5,7 @@ import { JwtPayload, verifyAccessToken } from "./jwt.util";
 
 export type AuthenticatedRequest = Request & {
   user?: JwtPayload;
+  authToken?: string;
 };
 
 export const requireAuth = (
@@ -26,6 +27,7 @@ export const requireAuth = (
 
   try {
     req.user = verifyAccessToken(token);
+    req.authToken = token;
     next();
   } catch (error) {
     const message =
