@@ -1,8 +1,12 @@
 // src/rooms/room.service.ts
-import { PostgrestError } from "@supabase/supabase-js";
+import type {
+  SupabaseClient,
+  PostgrestError,
+} from "@supabase/supabase-js";
+
+import { supabaseAdmin } from "../supabase/supabase.client";
 import { HttpError } from "../common/http-error";
-import {  supabaseAdmin } from "../supabase/supabase.client";
-import { SupabaseClient } from "@supabase/supabase-js";
+
 import {
   Room,
   Player,
@@ -13,9 +17,18 @@ import {
   listPlayers,
   countPlayers,
 } from "./room.repository";
+
 import { ROOM_STATUS, RoomStatus } from "./room.status";
 
+/* ================================
+ * Constants
+ * ================================ */
+
 const ALLOWED_CAPACITIES = new Set([3, 5, 7, 9]);
+
+/* ================================
+ * Internal helpers
+ * ================================ */
 
 const ensureMembership = async (
   client: SupabaseClient,
@@ -28,12 +41,12 @@ const ensureMembership = async (
     throw new HttpError(404, "Room not found");
   }
 
-  // 방장인 경우
+  // 방장
   if (room.host_user_id === userId) {
     return { room, isHost: true };
   }
 
-  // 참가자인지 확인
+  // 참가자 여부 확인
   const player = await fetchPlayer(client, roomId, userId);
   if (!player) {
     throw new HttpError(403, "Access denied");
@@ -41,6 +54,10 @@ const ensureMembership = async (
 
   return { room, isHost: false };
 };
+
+/* ================================
+ * Public services
+ * ================================ */
 
 export const createRoom = async (
   userId: string,
@@ -53,6 +70,7 @@ export const createRoom = async (
 
   const room = await insertRoom(supabaseAdmin, userId, capacity);
 
+  // 방장은 자동 참가
   await insertPlayer(
     supabaseAdmin,
     room.id,
@@ -63,7 +81,6 @@ export const createRoom = async (
   return room;
 };
 
-
 export const joinRoom = async (
   roomId: string,
   userId: string,
@@ -72,7 +89,7 @@ export const joinRoom = async (
   console.log("[JOIN_ROOM] start", { roomId, userId, nickname });
 
   try {
-    // 1️⃣ 방 조회
+    /* 1️⃣ 방 조회 */
     const room = await fetchRoomById(supabaseAdmin, roomId);
     if (!room) {
       throw new HttpError(404, "Room not found");
@@ -82,13 +99,13 @@ export const joinRoom = async (
       throw new HttpError(409, "Room is not joinable");
     }
 
-    // 2️⃣ 현재 인원
+    /* 2️⃣ 현재 인원 확인 */
     const currentCount = await countPlayers(supabaseAdmin, roomId);
     if (currentCount >= room.capacity) {
       throw new HttpError(409, "Room is full");
     }
 
-    // 3️⃣ 참가 insert
+    /* 3️⃣ 참가 insert */
     const player = await insertPlayer(
       supabaseAdmin,
       roomId,
@@ -99,30 +116,41 @@ export const joinRoom = async (
     console.log("[JOIN_ROOM] insert success", player);
     return player;
   } catch (err) {
-    console.error("[JOIN_ROOM] ERROR KEYS =", Object.keys(err as any));
-  console.error("[JOIN_ROOM] ERROR JSON =", JSON.stringify(err, null, 2));
+    // 🔥 여기서 모든 에러를 "의미 있는 HttpError"로 변환
+    console.error("[JOIN_ROOM] ERROR RAW =", err);
+    console.error(
+      "[JOIN_ROOM] ERROR KEYS =",
+      Object.keys(err as any)
+    );
+    console.error(
+      "[JOIN_ROOM] ERROR JSON =",
+      JSON.stringify(err, null, 2)
+    );
 
-  if (err instanceof HttpError) {
-    throw err;
+    // 이미 의도된 에러면 그대로 전달
+    if (err instanceof HttpError) {
+      throw err;
+    }
+
+    const pg = err as Partial<PostgrestError>;
+
+    // UNIQUE(room_id, user_id)
+    if (pg.code === "23505") {
+      throw new HttpError(409, "Already joined");
+    }
+
+    // FK(room_id) or FK(user_id)
+    if (pg.code === "23503") {
+      throw new HttpError(400, "Invalid room or user");
+    }
+
+    // 그 외 모든 경우
+    throw new HttpError(
+      500,
+      pg.message || "Failed to join room"
+    );
   }
-
-  const pg = err as any;
-
-  if (pg.code === "23505") {
-    throw new HttpError(409, "Already joined");
-  }
-
-  if (pg.code === "23503") {
-    throw new HttpError(400, "Invalid room or user");
-  }
-
-  throw new HttpError(
-    500,
-    pg.message || "Failed to join room"
-  );
-}
-}
-
+};
 
 export const getRoom = async (
   roomId: string,
@@ -136,7 +164,6 @@ export const getRoom = async (
   return room;
 };
 
-
 export const getRoomPlayers = async (
   roomId: string,
   userId: string
@@ -144,8 +171,6 @@ export const getRoomPlayers = async (
   await ensureMembership(supabaseAdmin, roomId, userId);
   return listPlayers(supabaseAdmin, roomId);
 };
-
-
 
 export const getRoomStatus = async (
   roomId: string,
@@ -158,4 +183,3 @@ export const getRoomStatus = async (
   );
   return room.status;
 };
-
