@@ -51,20 +51,6 @@ import {
 
 const router = Router();
 
-function handleControllerError(
-  res: Response,
-  error: unknown
-): Response {
-  if (error instanceof HttpError) {
-    return res.status(error.status).json({
-      error: error.message || "Request failed",
-    });
-  }
-
-  console.error(error);
-  return res.status(500).json({ error: "Internal Server Error" });
-}
-
 /**
  * 공통 인증 가드
  */
@@ -123,7 +109,8 @@ router.post("/:roomId/game/start", requireAuth, async (req: Request, res: Respon
 
     res.status(200).json({ state });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -156,7 +143,8 @@ router.get("/:roomId/game/state", requireAuth, async (req, res) => {
 
     res.status(200).json({ state });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -189,7 +177,8 @@ router.get("/:roomId/chapters", requireAuth, async (req, res) => {
 
     res.status(200).json({ chapters });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -222,7 +211,8 @@ router.get("/:roomId/chapters/current", requireAuth, async (req, res) => {
 
     res.status(200).json({ chapter });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -277,7 +267,8 @@ router.post(
 
       res.status(201).json(result);
     } catch (error) {
-      return handleControllerError(res, error);
+      const status = error instanceof HttpError ? error.status : 500;
+      res.status(status).json({ error: (error as Error).message });
     }
   }
 );
@@ -307,7 +298,8 @@ router.post(
 
       res.status(200).json({ state });
     } catch (error) {
-      return handleControllerError(res, error);
+      const status = error instanceof HttpError ? error.status : 500;
+      res.status(status).json({ error: (error as Error).message });
     }
   }
 );
@@ -346,7 +338,8 @@ router.post("/:roomId/final/leader-vote", requireAuth, async (req, res) => {
 
     res.status(201).json({ vote });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -370,7 +363,8 @@ router.post("/:roomId/final/resolve", requireAuth, async (req, res) => {
 
     res.status(200).json(result);
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -394,7 +388,8 @@ router.get("/:roomId/final/result", requireAuth, async (req, res) => {
 
     res.status(200).json(result);
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -418,7 +413,8 @@ router.get("/:roomId/leaderboard", requireAuth, async (req, res) => {
 
     res.status(200).json({ players });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -447,7 +443,8 @@ router.get(
 
       res.status(200).json({ votes });
     } catch (error) {
-      return handleControllerError(res, error);
+      const status = error instanceof HttpError ? error.status : 500;
+      res.status(status).json({ error: (error as Error).message });
     }
   }
 );

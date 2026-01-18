@@ -65,20 +65,6 @@ import {
 
 const router = Router();
 
-function handleControllerError(
-  res: Response,
-  error: unknown
-): Response {
-  if (error instanceof HttpError) {
-    return res.status(error.status).json({
-      error: error.message || "Request failed",
-    });
-  }
-
-  console.error(error);
-  return res.status(500).json({ error: "Internal Server Error" });
-}
-
 /**
  * 공통 인증 가드
  */
@@ -139,14 +125,17 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
     }
 
     const room = await createRoom(
+      req.authToken,
       req.user.userId,
       capacity,
       nickname
     );
+    
 
     res.status(201).json({ room });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -198,7 +187,8 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
 
     res.status(201).json({ player });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -207,7 +197,8 @@ router.get("/test-auth", requireAuth, (req: Request, res: Response) => {
     assertAuthenticated(req);
     res.status(200).json({ ok: true, user: req.user });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -216,7 +207,8 @@ router.get("/", requireAuth, (req: Request, res: Response) => {
     assertAuthenticated(req);
     res.status(200).json({ ok: true });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -250,13 +242,15 @@ router.get("/:roomId", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const room = await getRoom(
+      req.authToken,
       roomId,
       req.user.userId
     );
 
     res.status(200).json({ room });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
@@ -292,13 +286,17 @@ router.get("/:roomId/players", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const players = await getRoomPlayers(
+      req.authToken,
       roomId,
       req.user.userId
     );
+    
+    
 
     res.status(200).json({ players });
   } catch (error) {
-    return handleControllerError(res, error);
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
