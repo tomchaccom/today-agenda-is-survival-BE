@@ -30,7 +30,6 @@ app.use(
   })
 );
 
-app.use("/auth", authRouter);
 app.use("/rooms", roomRouter);
 app.use("/rooms", gameRouter);
 
@@ -56,3 +55,7 @@ app.get("/health", (req, res) => {
 app.use("/auth", authRouter);
 
 export default app;
+
+app.listen(4000, () => {
+  console.log("Server running on port 4000");
+});

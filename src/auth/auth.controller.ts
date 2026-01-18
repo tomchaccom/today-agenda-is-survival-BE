@@ -11,6 +11,28 @@ const router = Router();
 const isProd = process.env.NODE_ENV === "production";
 
 /**
+ * Google OAuth 시작 (로그인 페이지로 리다이렉트)
+ */
+router.get("/google", (req, res) => {
+  const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+
+  authUrl.searchParams.append(
+    "client_id",
+    process.env.GOOGLE_CLIENT_ID!
+  );
+  authUrl.searchParams.append(
+    "redirect_uri",
+    process.env.GOOGLE_REDIRECT_URI!
+  );
+  authUrl.searchParams.append("response_type", "code");
+  authUrl.searchParams.append("scope", "openid email profile");
+  authUrl.searchParams.append("access_type", "offline");
+  authUrl.searchParams.append("prompt", "consent");
+
+  res.redirect(authUrl.toString());
+});
+
+/**
  * Google OAuth 콜백
  * - 회원 존재 여부 확인
  * - 없으면 회원가입
