@@ -1,11 +1,12 @@
 // src/rooms/room.service.ts
 import type {
   SupabaseClient,
-  PostgrestError,
 } from "@supabase/supabase-js";
 
 import { supabaseAdmin } from "../supabase/supabase.client";
 import { HttpError } from "../common/http-error";
+import type { PostgrestError } from "@supabase/supabase-js";
+
 
 import {
   Room,
@@ -89,23 +90,18 @@ export const joinRoom = async (
   console.log("[JOIN_ROOM] start", { roomId, userId, nickname });
 
   try {
-    /* 1️⃣ 방 조회 */
     const room = await fetchRoomById(supabaseAdmin, roomId);
-    if (!room) {
-      throw new HttpError(404, "Room not found");
-    }
+    if (!room) throw new HttpError(404, "Room not found");
 
     if (room.status !== ROOM_STATUS.WAITING) {
       throw new HttpError(409, "Room is not joinable");
     }
 
-    /* 2️⃣ 현재 인원 확인 */
     const currentCount = await countPlayers(supabaseAdmin, roomId);
     if (currentCount >= room.capacity) {
       throw new HttpError(409, "Room is full");
     }
 
-    /* 3️⃣ 참가 insert */
     const player = await insertPlayer(
       supabaseAdmin,
       roomId,
@@ -115,42 +111,28 @@ export const joinRoom = async (
 
     console.log("[JOIN_ROOM] insert success", player);
     return player;
-  } catch (err) {
-    // 🔥 여기서 모든 에러를 "의미 있는 HttpError"로 변환
+  } catch (err: any) {
     console.error("[JOIN_ROOM] ERROR RAW =", err);
-    console.error(
-      "[JOIN_ROOM] ERROR KEYS =",
-      Object.keys(err as any)
-    );
-    console.error(
-      "[JOIN_ROOM] ERROR JSON =",
-      JSON.stringify(err, null, 2)
-    );
 
-    // 이미 의도된 에러면 그대로 전달
     if (err instanceof HttpError) {
       throw err;
     }
 
-    const pg = err as Partial<PostgrestError>;
-
-    // UNIQUE(room_id, user_id)
-    if (pg.code === "23505") {
+    if (err?.code === "23505") {
       throw new HttpError(409, "Already joined");
     }
 
-    // FK(room_id) or FK(user_id)
-    if (pg.code === "23503") {
+    if (err?.code === "23503") {
       throw new HttpError(400, "Invalid room or user");
     }
 
-    // 그 외 모든 경우
     throw new HttpError(
       500,
-      pg.message || "Failed to join room"
+      err?.message || "Failed to join room"
     );
   }
 };
+
 
 export const getRoom = async (
   roomId: string,
