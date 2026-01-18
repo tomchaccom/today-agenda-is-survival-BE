@@ -16,6 +16,39 @@ import {
   voteLeader,
 } from "./game.service";
 
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     GameState:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: playing
+ *         currentChapter:
+ *           type: integer
+ *           example: 1
+ *
+ *     VoteRequest:
+ *       type: object
+ *       required: [choice]
+ *       properties:
+ *         choice:
+ *           type: string
+ *           enum: [A, B]
+ *
+ *     LeaderVoteRequest:
+ *       type: object
+ *       required: [targetUserId]
+ *       properties:
+ *         targetUserId:
+ *           type: string
+ *           example: "user-uuid"
+ */
+
+
 const router = Router();
 
 /**
@@ -41,8 +74,29 @@ function requireParam(value: unknown, name: string): string {
 }
 
 /**
- * 게임 시작
+ * @swagger
+ * /rooms/{roomId}/game/start:
+ *   post:
+ *     summary: 게임 시작
+ *     tags: [Game]
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 게임 시작 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 state:
+ *                   $ref: '#/components/schemas/GameState'
  */
+
 router.post("/:roomId/game/start", requireAuth, async (req: Request, res: Response) => {
   try {
     assertAuthenticated(req);
@@ -62,8 +116,22 @@ router.post("/:roomId/game/start", requireAuth, async (req: Request, res: Respon
 });
 
 /**
- * 게임 상태 조회
+ * @swagger
+ * /rooms/{roomId}/game/state:
+ *   get:
+ *     summary: 게임 상태 조회
+ *     tags: [Game]
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 현재 게임 상태
  */
+
 router.get("/:roomId/game/state", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
@@ -83,8 +151,22 @@ router.get("/:roomId/game/state", requireAuth, async (req, res) => {
 });
 
 /**
- * 챕터 목록
+ * @swagger
+ * /rooms/{roomId}/chapters:
+ *   get:
+ *     summary: 챕터 목록 조회
+ *     tags: [Chapter]
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 챕터 리스트
  */
+
 router.get("/:roomId/chapters", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
@@ -104,8 +186,22 @@ router.get("/:roomId/chapters", requireAuth, async (req, res) => {
 });
 
 /**
- * 현재 챕터
+ * @swagger
+ * /rooms/{roomId}/chapters/current:
+ *   get:
+ *     summary: 현재 챕터 조회
+ *     tags: [Chapter]
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 현재 진행 중인 챕터
  */
+
 router.get("/:roomId/chapters/current", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
@@ -125,8 +221,33 @@ router.get("/:roomId/chapters/current", requireAuth, async (req, res) => {
 });
 
 /**
- * 챕터 투표
+ * @swagger
+ * /rooms/{roomId}/chapters/{chapterId}/vote:
+ *   post:
+ *     summary: 챕터 투표
+ *     tags: [Vote]
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: chapterId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/VoteRequest'
+ *     responses:
+ *       201:
+ *         description: 투표 완료
  */
+
 router.post(
   "/:roomId/chapters/:chapterId/vote",
   requireAuth,
@@ -158,8 +279,13 @@ router.post(
 );
 
 /**
- * 챕터 결과 확정
+ * @swagger
+ * /rooms/{roomId}/chapters/{chapterId}/resolve:
+ *   post:
+ *     summary: 챕터 결과 확정
+ *     tags: [Chapter]
  */
+
 router.post(
   "/:roomId/chapters/:chapterId/resolve",
   requireAuth,
@@ -183,10 +309,23 @@ router.post(
     }
   }
 );
-
 /**
- * 리더 투표
+ * @swagger
+ * /rooms/{roomId}/final/leader-vote:
+ *   post:
+ *     summary: 리더 투표
+ *     tags: [Final]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/LeaderVoteRequest'
+ *     responses:
+ *       201:
+ *         description: 리더 투표 완료
  */
+
 router.post("/:roomId/final/leader-vote", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
@@ -212,8 +351,13 @@ router.post("/:roomId/final/leader-vote", requireAuth, async (req, res) => {
 });
 
 /**
- * 최종 결과 확정
+ * @swagger
+ * /rooms/{roomId}/final/resolve:
+ *   post:
+ *     summary: 최종 결과 확정
+ *     tags: [Final]
  */
+
 router.post("/:roomId/final/resolve", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
@@ -233,8 +377,13 @@ router.post("/:roomId/final/resolve", requireAuth, async (req, res) => {
 });
 
 /**
- * 최종 결과 조회
+ * @swagger
+ * /rooms/{roomId}/final/result:
+ *   get:
+ *     summary: 최종 결과 조회
+ *     tags: [Final]
  */
+
 router.get("/:roomId/final/result", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
@@ -254,8 +403,13 @@ router.get("/:roomId/final/result", requireAuth, async (req, res) => {
 });
 
 /**
- * 리더보드
+ * @swagger
+ * /rooms/{roomId}/leaderboard:
+ *   get:
+ *     summary: 리더보드 조회
+ *     tags: [Leaderboard]
  */
+
 router.get("/:roomId/leaderboard", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
@@ -275,8 +429,13 @@ router.get("/:roomId/leaderboard", requireAuth, async (req, res) => {
 });
 
 /**
- * 챕터 투표 목록
+ * @swagger
+ * /rooms/{roomId}/chapters/{chapterId}/votes:
+ *   get:
+ *     summary: 챕터 투표 목록 조회
+ *     tags: [Vote]
  */
+
 router.get(
   "/:roomId/chapters/:chapterId/votes",
   requireAuth,

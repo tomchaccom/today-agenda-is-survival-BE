@@ -2,12 +2,13 @@ import swaggerJsdoc from "swagger-jsdoc";
 
 export const swaggerSpec = swaggerJsdoc({
   definition: {
-    openapi: "3.0.0",
+    openapi: "3.0.3",
     info: {
       title: "Today Agenda Is Survival API",
       version: "1.0.0",
       description: "API Specification",
     },
+
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -17,13 +18,20 @@ export const swaggerSpec = swaggerJsdoc({
         },
       },
     },
+
+    security: [{ bearerAuth: [] }],
+
     servers: [
       {
-        url: "https://qltkek.shop",
+        url: "http://localhost:4000",
+        description: "Local server",
       },
     ],
   },
 
-  // ⚠️ 빌드 후 기준 (dist)
-  apis: ["dist/**/*.controller.js"],
+  // 🔥 핵심: controller + router 둘 다 포함
+  apis: [
+    "dist/**/*.controller.js",
+    "dist/**/*.router.js",
+  ],
 });
