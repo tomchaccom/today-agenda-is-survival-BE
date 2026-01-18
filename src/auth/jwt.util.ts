@@ -1,16 +1,41 @@
 import jwt from "jsonwebtoken";
 
+/* =========================
+ * Types
+ * ========================= */
 export type VerifiedAccessToken = {
-  userId: string; // uuid
+  userId: string; // UUID
   email: string;
 };
 
-const UUID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/* =========================
+ * Issue Access Token
+ * ========================= */
+export function issueAccessToken(user: {
+  id: string;      // Supabase users.id (UUID)
+  email: string;
+}) {
+  const secret = process.env.JWT_ACCESS_SECRET;
+  if (!secret) {
+    throw new Error("JWT_ACCESS_SECRET is not defined");
+  }
 
-export function verifyAccessToken(
-  token: string
-): VerifiedAccessToken {
+  return jwt.sign(
+    {
+      sub: user.id,     // ✅ UUID
+      email: user.email,
+    },
+    secret,
+    {
+      expiresIn: "15m",
+    }
+  );
+}
+
+/* =========================
+ * Verify Access Token
+ * ========================= */
+export function verifyAccessToken(token: string): VerifiedAccessToken {
   const secret = process.env.JWT_ACCESS_SECRET;
   if (!secret) {
     throw new Error("JWT_ACCESS_SECRET is not defined");
@@ -18,15 +43,12 @@ export function verifyAccessToken(
 
   const decoded = jwt.verify(token, secret) as jwt.JwtPayload;
 
-  // 1) uuid(sub)
+  // sub = userId (UUID)
   if (typeof decoded.sub !== "string") {
     throw new Error("Invalid JWT payload: sub missing");
   }
-  if (!UUID_RE.test(decoded.sub)) {
-    throw new Error("Invalid JWT payload: sub is not a UUID");
-  }
 
-  // 2) email
+  // email
   if (typeof decoded.email !== "string") {
     throw new Error("Invalid JWT payload: email missing");
   }
