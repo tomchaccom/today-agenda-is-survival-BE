@@ -23,7 +23,13 @@ export const requireAuth = (
 
   try {
     const payload = verifyAccessToken(token);
-    req.user = { userId: payload.userId, email: payload.email };
+    req.user = {
+      userId: payload.userId,
+      email: payload.email,
+      provider: payload.provider, // 🔥 추가
+      role: payload.role,         // 🔥 추가
+    };
+
     req.authToken = token;
     next();
   } catch (error) {

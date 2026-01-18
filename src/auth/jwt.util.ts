@@ -15,30 +15,30 @@ export function verifyAccessToken(token: string): JwtPayload {
 
   const decoded = jwt.verify(token, secret) as jwt.JwtPayload;
 
-  // 1️⃣ uuid (sub) 검증
+  // 1) uuid(sub)
   if (typeof decoded.sub !== "string") {
     throw new Error("Invalid JWT payload: sub missing");
   }
 
-  // 2️⃣ email 검증
+  // 2) email
   if (typeof decoded.email !== "string") {
     throw new Error("Invalid JWT payload: email missing");
   }
 
-  // 3️⃣ provider 검증
+  // 3) provider
   if (decoded.provider !== "google") {
     throw new Error("Invalid JWT payload: provider");
   }
 
-  // 4️⃣ role 검증
-  if (decoded.role !== "authenticated") {
+  // 4) role: user | admin
+  if (decoded.role !== "user" && decoded.role !== "admin") {
     throw new Error("Invalid JWT payload: role");
   }
 
   return {
-    userId: decoded.sub,        // uuid
-    email: decoded.email,       // string 확정
-    provider: "google",         // 🔥 리터럴로 고정
-    role: "user",      // 🔥 리터럴로 고정
+    userId: decoded.sub,
+    email: decoded.email,
+    provider: "google",
+    role: decoded.role, // ✅ "user" | "admin"
   };
 }
