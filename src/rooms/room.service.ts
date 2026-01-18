@@ -68,7 +68,9 @@ export const joinRoom = async (
   roomId: string,
   userId: string,
   nickname?: string
+  
 ): Promise<Player> => {
+  console.log("[JOIN_ROOM] start", { roomId, userId, nickname });
   const room = await fetchRoomById(supabaseAdmin, roomId);
   if (!room) throw new HttpError(404, "Room not found");
 
@@ -89,6 +91,7 @@ export const joinRoom = async (
       nickname
     );
   } catch (error) {
+    console.error("[JOIN_ROOM] ERROR RAW =", error);
     const pg = error as PostgrestError;
     if (pg.code === "23505") {
       throw new HttpError(409, "Already joined");
