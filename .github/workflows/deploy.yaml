@@ -57,4 +57,4 @@ jobs:
             pm2 save
 
             pm2 list
-            pm2 describe qltkek-api
+          
