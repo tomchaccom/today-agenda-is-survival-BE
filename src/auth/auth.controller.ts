@@ -48,18 +48,21 @@ router.get("/google/callback", async (req, res) => {
     console.log("[AUTH][CALLBACK] STEP 3: exchanging Google code");
     const googleUser = await exchangeGoogleCode(code);
 
-    console.log("[AUTH][CALLBACK] STEP 3-1: googleUser =", {
-      email: googleUser.email,
-      providerId: googleUser.providerId,
-    });
-
     const email = googleUser.email;
     const providerUserId = googleUser.providerId;
+
+    console.log("[AUTH][CALLBACK] STEP 3-1: googleUser =", {
+      email,
+      providerUserId,
+    });
 
     if (!providerUserId) {
       console.error("[AUTH][CALLBACK] provider_user_id missing");
       return res.status(400).json({ error: "Invalid Google user" });
     }
+
+    // ✅ 타입에 맞는 displayName (이게 정답)
+    const displayName = googleUser.name ?? null;
 
     /* STEP 4 */
     console.log("[AUTH][CALLBACK] STEP 4: user lookup start");
@@ -89,6 +92,7 @@ router.get("/google/callback", async (req, res) => {
         .from("users")
         .insert({
           email,
+          name: displayName,
           provider: "google",
           provider_user_id: providerUserId,
           role: "user",
