@@ -1,6 +1,7 @@
 import { Router } from "express";
 import "dotenv/config";
 
+import { HttpError } from "../common/http-error";
 import { exchangeGoogleCode } from "./google.service";
 import { issueTokens } from "./auth.service";
 import type { AuthUser } from "./auth.service";
@@ -154,10 +155,14 @@ router.get("/google/callback", async (req, res) => {
       isNewUser,
     });
   } catch (error) {
-    const err = error instanceof Error ? error : new Error("Unknown error");
-    console.error("AUTH ERROR:", err.message);
-    console.error(err.stack);
-    res.status(500).json({ error: err.message });
+    if (error instanceof HttpError) {
+      return res.status(error.status).json({
+        error: error.message || "Request failed",
+      });
+    }
+
+    console.error(error);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 

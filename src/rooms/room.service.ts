@@ -110,7 +110,7 @@ export const joinRoom = async (
     if (pgError?.code === "23505") {
       throw new HttpError(409, "User already joined");
     }
-    throw error;
+    throw new HttpError(500, pgError?.message || "Database error");
   }
 };
 
