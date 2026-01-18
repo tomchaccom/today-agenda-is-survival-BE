@@ -1,8 +1,8 @@
 // src/rooms/room.status.ts
 export const ROOM_STATUS = {
-  WAITING: "WAITING",
-  PLAYING: "PLAYING",
-  FINISHED: "FINISHED",
+  WAITING: "waiting",
+  PLAYING: "playing",
+  RESOLVED: "resolved",
 } as const;
 
 export type RoomStatus =
