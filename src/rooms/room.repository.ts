@@ -168,9 +168,9 @@ export const countPlayers = async (
   client: SupabaseClient,
   roomId: string
 ): Promise<number> => {
-  const { count, error } = await client
+  const { data, error } = await client
     .from("room_players")
-    .select("id", { count: "exact", head: true })
+    .select("id")
     .eq("room_id", roomId);
 
   if (error) {
@@ -180,5 +180,6 @@ export const countPlayers = async (
     );
   }
 
-  return count ?? 0;
+  return data?.length ?? 0;
 };
+
