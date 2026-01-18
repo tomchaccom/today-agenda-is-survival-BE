@@ -5,6 +5,9 @@ import dotenv from "dotenv";
 
 import authRouter from "./auth/auth.controller";
 import { swaggerSpec } from "./config/swagger";
+import roomRouter from "./rooms/room.controller";
+import gameRouter from "./game/game.controller";
+
 
 
 dotenv.config();
@@ -26,6 +29,10 @@ app.use(
     credentials: true,
   })
 );
+
+app.use("/auth", authRouter);
+app.use("/rooms", roomRouter);
+app.use("/rooms", gameRouter);
 
 /* ========================
    Swagger (API Docs)
