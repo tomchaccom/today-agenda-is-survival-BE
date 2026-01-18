@@ -1,10 +1,13 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
+/**
+ * 🔥 DB enum과 100% 동일 (소문자)
+ */
 export type RoomStatus =
-  | "WAITING"
-  | "IN_PROGRESS"
-  | "FINAL_VOTE"
-  | "FINISHED";
+  | "waiting"
+  | "playing"
+  | "final_vote"
+  | "finished";
 
 export type Room = {
   id: string;
@@ -23,6 +26,9 @@ export type Player = {
   joined_at: string;
 };
 
+/**
+ * ====== Room ======
+ */
 export const insertRoom = async (
   client: SupabaseClient,
   hostUserId: string,
@@ -32,7 +38,7 @@ export const insertRoom = async (
     .from("rooms")
     .insert({
       host_user_id: hostUserId,
-      status: "WAITING",
+      status: "waiting", // 🔥 반드시 소문자
       capacity,
     })
     .select("id,host_user_id,status,capacity,created_at")
@@ -64,15 +70,19 @@ export const updateRoomStatus = async (
 ): Promise<Room | null> => {
   const { data, error } = await client
     .from("rooms")
-    .update({ status: toStatus })
+    .update({ status: toStatus }) // 🔥 소문자 enum
     .eq("id", roomId)
     .eq("status", fromStatus)
-    .select("id,host_user_id,status,capacity,created_at");
+    .select("id,host_user_id,status,capacity,created_at")
+    .single();
 
   if (error) throw error;
-  return data?.[0] ?? null;
+  return data;
 };
 
+/**
+ * ====== Player ======
+ */
 export const insertPlayer = async (
   client: SupabaseClient,
   roomId: string,

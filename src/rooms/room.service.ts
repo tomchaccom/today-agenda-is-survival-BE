@@ -13,6 +13,15 @@ import {
   listPlayers,
 } from "./room.repository";
 
+/**
+ * DB enum 기준 (🔥 반드시 소문자)
+ */
+const ROOM_STATUS = {
+  WAITING: "waiting",
+  PLAYING: "playing",
+  RESOLVED: "resolved",
+} as const;
+
 const ALLOWED_CAPACITIES = new Set([3, 5, 7, 9]);
 
 /**
@@ -26,14 +35,18 @@ const ensureMembership = async (
   const client = createUserClient(clientToken);
 
   const room = await fetchRoomById(client, roomId);
-  if (!room) throw new HttpError(404, "Room not found");
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
 
   if (room.host_user_id === userId) {
     return { room, isHost: true };
   }
 
   const player = await fetchPlayer(client, roomId, userId);
-  if (!player) throw new HttpError(403, "Access denied");
+  if (!player) {
+    throw new HttpError(403, "Access denied");
+  }
 
   return { room, isHost: false };
 };
@@ -51,8 +64,15 @@ export const createRoom = async (
     throw new HttpError(422, "Invalid capacity");
   }
 
+  // 🔥 insertRoom 내부에서 status: "waiting" 이어야 함
   const room = await insertRoom(supabaseAdmin, userId, capacity);
-  await insertPlayer(supabaseAdmin, room.id, userId, nickname);
+
+  await insertPlayer(
+    supabaseAdmin,
+    room.id,
+    userId,
+    nickname
+  );
 
   return room;
 };
@@ -67,24 +87,39 @@ export const joinRoom = async (
   nickname?: string
 ): Promise<Player> => {
   const room = await fetchRoomById(supabaseAdmin, roomId);
-  if (!room) throw new HttpError(404, "Room not found");
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
 
-  if (room.status !== "WAITING") {
+  // 🔥 여기 핵심 수정 (대문자 → 소문자)
+  if (room.status !== ROOM_STATUS.WAITING) {
     throw new HttpError(409, "Room is not joinable");
   }
 
-  const alreadyJoined = await fetchPlayer(supabaseAdmin, roomId, userId);
+  const alreadyJoined = await fetchPlayer(
+    supabaseAdmin,
+    roomId,
+    userId
+  );
   if (alreadyJoined) {
     throw new HttpError(409, "User already joined");
   }
 
-  const currentCount = await countPlayers(supabaseAdmin, roomId);
+  const currentCount = await countPlayers(
+    supabaseAdmin,
+    roomId
+  );
   if (currentCount >= room.capacity) {
     throw new HttpError(409, "Room is full");
   }
 
   try {
-    return await insertPlayer(supabaseAdmin, roomId, userId, nickname);
+    return await insertPlayer(
+      supabaseAdmin,
+      roomId,
+      userId,
+      nickname
+    );
   } catch (error) {
     const pgError = error as PostgrestError;
     if (pgError?.code === "23505") {
@@ -102,7 +137,11 @@ export const getRoom = async (
   roomId: string,
   userId: string
 ): Promise<Room> => {
-  const { room } = await ensureMembership(clientToken, roomId, userId);
+  const { room } = await ensureMembership(
+    clientToken,
+    roomId,
+    userId
+  );
   return room;
 };
 
@@ -112,7 +151,11 @@ export const getRoomPlayers = async (
   userId: string
 ): Promise<Player[]> => {
   await ensureMembership(clientToken, roomId, userId);
-  return listPlayers(createUserClient(clientToken), roomId);
+
+  return listPlayers(
+    createUserClient(clientToken),
+    roomId
+  );
 };
 
 export const getRoomStatus = async (
@@ -120,6 +163,10 @@ export const getRoomStatus = async (
   roomId: string,
   userId: string
 ): Promise<RoomStatus> => {
-  const { room } = await ensureMembership(clientToken, roomId, userId);
+  const { room } = await ensureMembership(
+    clientToken,
+    roomId,
+    userId
+  );
   return room.status;
 };

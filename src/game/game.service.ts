@@ -255,8 +255,7 @@ export const voteChapter = async (
   ]);
 
   if (voteCount < playerCount) {
-    // room.status는 IN_PROGRESS일 테니 그대로
-    return { state: room.status as GamePhase, vote };
+    return { state: state.phase, vote };
   }
 
   await resolveChapter(clientToken, roomId, chapterId, userId);
