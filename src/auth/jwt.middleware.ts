@@ -3,26 +3,32 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 
 /**
  * Access Token Payload 타입
- * - userId === Supabase users.id (uuid)
+ * - sub === Supabase users.id (uuid)
  */
 interface AccessTokenPayload extends JwtPayload {
-  sub: string; // uuid
+  sub: string;          // ✅ userId
   email: string;
-  provider: "google";
-  role: "user" | "admin";
+  provider?: "google";
+  role?: "user" | "admin";
 }
 
 /**
  * JWT 검증 유틸
  */
 function verifyAccessToken(token: string): AccessTokenPayload {
-  const decoded = jwt.verify(
-    token,
-    process.env.JWT_SECRET!
-  ) as AccessTokenPayload;
+  const secret = process.env.JWT_ACCESS_SECRET;
+  if (!secret) {
+    throw new Error("JWT_ACCESS_SECRET is not defined");
+  }
+
+  const decoded = jwt.verify(token, secret) as AccessTokenPayload;
 
   if (!decoded.sub || typeof decoded.sub !== "string") {
     throw new Error("Invalid token payload (missing sub)");
+  }
+
+  if (typeof decoded.email !== "string") {
+    throw new Error("Invalid token payload (missing email)");
   }
 
   return decoded;
@@ -45,7 +51,7 @@ export const requireAuth = (
     return res.status(401).json({ error: "Missing Bearer token" });
   }
 
-  const token = authHeader.replace("Bearer ", "").trim();
+  const token = authHeader.slice("Bearer ".length).trim();
   if (!token) {
     return res.status(401).json({ error: "Missing Bearer token" });
   }
@@ -54,15 +60,14 @@ export const requireAuth = (
     const payload = verifyAccessToken(token);
 
     /**
-     * 🔑 핵심
-     * - userId 는 항상 uuid
-     * - email 은 보조 정보
+     * 🔑 핵심 수정 포인트
+     * - userId = payload.sub
      */
     req.user = {
-      userId: payload.userId,
+      userId: payload.sub,     // ✅ 여기!!!
       email: payload.email,
-      provider: payload.provider,
-      role: payload.role,
+      provider: payload.provider ?? "google",
+      role: payload.role ?? "user",
     };
 
     req.authToken = token;
