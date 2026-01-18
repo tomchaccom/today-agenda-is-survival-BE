@@ -64,8 +64,6 @@ export const createRoom = async (
 };
 
 
-import { PostgrestError } from "@supabase/supabase-js";
-
 export const joinRoom = async (
   roomId: string,
   userId: string,
