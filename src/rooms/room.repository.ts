@@ -170,7 +170,7 @@ export const countPlayers = async (
 ): Promise<number> => {
   const { data, error } = await client
     .from("room_players")
-    .select("id")
+    .select("*")
     .eq("room_id", roomId);
 
   if (error) {
@@ -180,6 +180,7 @@ export const countPlayers = async (
     );
   }
 
-  return data?.length ?? 0;
+  return data.length;
 };
+
 
