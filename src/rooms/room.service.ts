@@ -71,24 +71,24 @@ export const joinRoom = async (
 ): Promise<Player> => {
   console.log("[JOIN_ROOM] start", { roomId, userId, nickname });
 
-  // 1️⃣ 방 조회
-  const room = await fetchRoomById(supabaseAdmin, roomId);
-  if (!room) {
-    throw new HttpError(404, "Room not found");
-  }
-
-  if (room.status !== ROOM_STATUS.WAITING) {
-    throw new HttpError(409, "Room is not joinable");
-  }
-
-  // 2️⃣ 현재 인원 확인
-  const currentCount = await countPlayers(supabaseAdmin, roomId);
-  if (currentCount >= room.capacity) {
-    throw new HttpError(409, "Room is full");
-  }
-
-  // 3️⃣ 참가 insert
   try {
+    // 1️⃣ 방 조회
+    const room = await fetchRoomById(supabaseAdmin, roomId);
+    if (!room) {
+      throw new HttpError(404, "Room not found");
+    }
+
+    if (room.status !== ROOM_STATUS.WAITING) {
+      throw new HttpError(409, "Room is not joinable");
+    }
+
+    // 2️⃣ 현재 인원
+    const currentCount = await countPlayers(supabaseAdmin, roomId);
+    if (currentCount >= room.capacity) {
+      throw new HttpError(409, "Room is full");
+    }
+
+    // 3️⃣ 참가 insert
     const player = await insertPlayer(
       supabaseAdmin,
       roomId,
@@ -101,26 +101,30 @@ export const joinRoom = async (
   } catch (err) {
     console.error("[JOIN_ROOM] ERROR RAW =", err);
 
-    // 🔥 Postgrest 에러 안전 처리
+    // 이미 의도된 HttpError면 그대로 전달
+    if (err instanceof HttpError) {
+      throw err;
+    }
+
+    // Supabase/Postgrest 에러 처리
     const pg = err as Partial<PostgrestError>;
 
     if (pg.code === "23505") {
-      // UNIQUE(room_id, user_id)
       throw new HttpError(409, "Already joined");
     }
 
     if (pg.code === "23503") {
-      // FK 오류
       throw new HttpError(400, "Invalid room or user");
     }
 
-    // 그 외는 서버 에러로 래핑
+    // 그 외 모든 경우
     throw new HttpError(
       500,
       pg.message || "Failed to join room"
     );
   }
 };
+
 
 
 export const getRoom = async (
