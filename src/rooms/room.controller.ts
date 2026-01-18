@@ -69,7 +69,7 @@ const router = Router();
  * 공통 인증 가드
  */
 function assertAuthenticated(req: Request): asserts req is Request & {
-  user: { userId: string };
+  user: { userId: string; email: string };
   authToken: string;
 } {
   if (!req.user || !req.user.userId || !req.authToken) {
@@ -186,6 +186,26 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
     );
 
     res.status(201).json({ player });
+  } catch (error) {
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
+  }
+});
+
+router.get("/test-auth", requireAuth, (req: Request, res: Response) => {
+  try {
+    assertAuthenticated(req);
+    res.status(200).json({ ok: true, user: req.user });
+  } catch (error) {
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
+  }
+});
+
+router.get("/", requireAuth, (req: Request, res: Response) => {
+  try {
+    assertAuthenticated(req);
+    res.status(200).json({ ok: true });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
     res.status(status).json({ error: (error as Error).message });
