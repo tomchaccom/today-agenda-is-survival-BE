@@ -30,7 +30,7 @@ const ensureMembership = async (
     return { room, isHost: true };
   }
 
-  const player = await fetchPlayer(client, roomId, userId);
+  const player = await fetchPlayer(supabaseAdmin, roomId, userId);
   if (!player) throw new HttpError(403, "Access denied");
 
   return { room, isHost: false };
