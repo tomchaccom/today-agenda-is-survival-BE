@@ -139,7 +139,6 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
     }
 
     const room = await createRoom(
-      req.authToken,
       req.user.userId,
       capacity,
       nickname
@@ -192,7 +191,6 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
     }
 
     const player = await joinRoom(
-      req.authToken,
       roomId,
       req.user.userId,
       nickname
@@ -252,7 +250,6 @@ router.get("/:roomId", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const room = await getRoom(
-      req.authToken,
       roomId,
       req.user.userId
     );
@@ -295,7 +292,6 @@ router.get("/:roomId/players", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const players = await getRoomPlayers(
-      req.authToken,
       roomId,
       req.user.userId
     );
