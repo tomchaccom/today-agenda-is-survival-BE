@@ -64,39 +64,63 @@ export const createRoom = async (
 };
 
 
+import { PostgrestError } from "@supabase/supabase-js";
+
 export const joinRoom = async (
   roomId: string,
   userId: string,
   nickname?: string
-  
 ): Promise<Player> => {
   console.log("[JOIN_ROOM] start", { roomId, userId, nickname });
+
+  // 1️⃣ 방 조회
   const room = await fetchRoomById(supabaseAdmin, roomId);
-  if (!room) throw new HttpError(404, "Room not found");
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
 
   if (room.status !== ROOM_STATUS.WAITING) {
     throw new HttpError(409, "Room is not joinable");
   }
 
+  // 2️⃣ 현재 인원 확인
   const currentCount = await countPlayers(supabaseAdmin, roomId);
   if (currentCount >= room.capacity) {
     throw new HttpError(409, "Room is full");
   }
 
+  // 3️⃣ 참가 insert
   try {
-    return await insertPlayer(
+    const player = await insertPlayer(
       supabaseAdmin,
       roomId,
       userId,
       nickname
     );
-  } catch (error) {
-    console.error("[JOIN_ROOM] ERROR RAW =", error);
-    const pg = error as PostgrestError;
+
+    console.log("[JOIN_ROOM] insert success", player);
+    return player;
+  } catch (err) {
+    console.error("[JOIN_ROOM] ERROR RAW =", err);
+
+    // 🔥 Postgrest 에러 안전 처리
+    const pg = err as Partial<PostgrestError>;
+
     if (pg.code === "23505") {
+      // UNIQUE(room_id, user_id)
       throw new HttpError(409, "Already joined");
     }
-    throw error;
+
+    if (pg.code === "23503") {
+      // FK 오류
+      throw new HttpError(400, "Invalid room or user");
+    }
+
+    // 그 외는 서버 에러로 래핑
+    throw new HttpError(
+      500,
+      pg.message || "Failed to join room"
+    );
   }
 };
 
