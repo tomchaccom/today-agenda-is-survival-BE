@@ -4,7 +4,6 @@ import { createUserClient, supabaseAdmin } from "../supabase/supabase.client";
 import {
   Player,
   Room,
-  RoomStatus,
   countPlayers,
   fetchPlayer,
   fetchRoomById,
@@ -12,15 +11,7 @@ import {
   insertRoom,
   listPlayers,
 } from "./room.repository";
-
-/**
- * DB enum 기준 (🔥 반드시 소문자)
- */
-const ROOM_STATUS = {
-  WAITING: "waiting",
-  PLAYING: "playing",
-  RESOLVED: "resolved",
-} as const;
+import { ROOM_STATUS, RoomStatus } from "./room.status";
 
 const ALLOWED_CAPACITIES = new Set([3, 5, 7, 9]);
 
@@ -64,7 +55,7 @@ export const createRoom = async (
     throw new HttpError(422, "Invalid capacity");
   }
 
-  // 🔥 insertRoom 내부에서 status: "waiting" 이어야 함
+  // status는 ROOM_STATUS.WAITING으로 insertRoom에서 처리
   const room = await insertRoom(supabaseAdmin, userId, capacity);
 
   await insertPlayer(
@@ -91,7 +82,6 @@ export const joinRoom = async (
     throw new HttpError(404, "Room not found");
   }
 
-  // 🔥 여기 핵심 수정 (대문자 → 소문자)
   if (room.status !== ROOM_STATUS.WAITING) {
     throw new HttpError(409, "Room is not joinable");
   }

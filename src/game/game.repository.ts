@@ -1,10 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 
-export type GamePhase =
-  | "WAITING"
-  | "IN_PROGRESS"
-  | "FINAL_VOTE"
-  | "FINISHED";
+export type GamePhase = "IN_PROGRESS" | "FINAL_VOTE" | "FINISHED";
 
 export type GameState = {
   room_id: string;

@@ -1,34 +1,24 @@
+// src/rooms/room.repository.ts
 import { SupabaseClient } from "@supabase/supabase-js";
+import { ROOM_STATUS, RoomStatus } from "./room.status";
 
-/**
- * 🔥 DB enum과 100% 동일 (소문자)
- */
-export type RoomStatus =
-  | "waiting"
-  | "playing"
-  | "final_vote"
-  | "finished";
-
-export type Room = {
+export interface Room {
   id: string;
   host_user_id: string;
   status: RoomStatus;
   capacity: number;
   created_at: string;
-};
+}
 
-export type Player = {
+export interface Player {
   id: string;
   room_id: string;
   user_id: string;
   nickname: string | null;
   influence_score: number;
   joined_at: string;
-};
+}
 
-/**
- * ====== Room ======
- */
 export const insertRoom = async (
   client: SupabaseClient,
   hostUserId: string,
@@ -38,10 +28,10 @@ export const insertRoom = async (
     .from("rooms")
     .insert({
       host_user_id: hostUserId,
-      status: "waiting", // 🔥 반드시 소문자
       capacity,
+      status: ROOM_STATUS.WAITING,
     })
-    .select("id,host_user_id,status,capacity,created_at")
+    .select()
     .single();
 
   if (error) throw error;
@@ -54,7 +44,7 @@ export const fetchRoomById = async (
 ): Promise<Room | null> => {
   const { data, error } = await client
     .from("rooms")
-    .select("id,host_user_id,status,capacity,created_at")
+    .select("*")
     .eq("id", roomId)
     .maybeSingle();
 
@@ -65,24 +55,34 @@ export const fetchRoomById = async (
 export const updateRoomStatus = async (
   client: SupabaseClient,
   roomId: string,
-  fromStatus: RoomStatus,
-  toStatus: RoomStatus
-): Promise<Room | null> => {
-  const { data, error } = await client
+  from: RoomStatus,
+  to: RoomStatus
+): Promise<void> => {
+  const { error } = await client
     .from("rooms")
-    .update({ status: toStatus }) // 🔥 소문자 enum
+    .update({ status: to })
     .eq("id", roomId)
-    .eq("status", fromStatus)
-    .select("id,host_user_id,status,capacity,created_at")
-    .single();
+    .eq("status", from);
+
+  if (error) throw error;
+};
+
+export const fetchPlayer = async (
+  client: SupabaseClient,
+  roomId: string,
+  userId: string
+): Promise<Player | null> => {
+  const { data, error } = await client
+    .from("players")
+    .select("*")
+    .eq("room_id", roomId)
+    .eq("user_id", userId)
+    .maybeSingle();
 
   if (error) throw error;
   return data;
 };
 
-/**
- * ====== Player ======
- */
 export const insertPlayer = async (
   client: SupabaseClient,
   roomId: string,
@@ -96,24 +96,8 @@ export const insertPlayer = async (
       user_id: userId,
       nickname: nickname ?? null,
     })
-    .select("id,room_id,user_id,nickname,influence_score,joined_at")
+    .select()
     .single();
-
-  if (error) throw error;
-  return data;
-};
-
-export const fetchPlayer = async (
-  client: SupabaseClient,
-  roomId: string,
-  userId: string
-): Promise<Player | null> => {
-  const { data, error } = await client
-    .from("players")
-    .select("id,room_id,user_id,nickname,influence_score,joined_at")
-    .eq("room_id", roomId)
-    .eq("user_id", userId)
-    .maybeSingle();
 
   if (error) throw error;
   return data;
@@ -125,7 +109,7 @@ export const listPlayers = async (
 ): Promise<Player[]> => {
   const { data, error } = await client
     .from("players")
-    .select("id,room_id,user_id,nickname,influence_score,joined_at")
+    .select("*")
     .eq("room_id", roomId);
 
   if (error) throw error;

@@ -8,6 +8,7 @@ import {
   fetchRoomById,
   updateRoomStatus,
 } from "../rooms/room.repository";
+import { ROOM_STATUS } from "../rooms/room.status";
 import {
   Chapter,
   ChapterVote,
@@ -147,7 +148,9 @@ export const startGame = async (
   const room = await fetchRoomById(readClient, roomId);
   if (!room) throw new HttpError(404, "Room not found");
   if (room.host_user_id !== userId) throw new HttpError(403, "Only host can start");
-  if (room.status !== "WAITING") throw new HttpError(409, "Room already started");
+  if (room.status !== ROOM_STATUS.WAITING) {
+    throw new HttpError(409, "Room already started");
+  }
 
   const playerCount = await countPlayers(readClient, roomId);
   if (playerCount < 3 || playerCount % 2 === 0) {
@@ -160,8 +163,18 @@ export const startGame = async (
   const currentState = await fetchGameState(supabaseAdmin, roomId);
   if (currentState) throw new HttpError(409, "Game already started");
 
-  await updateRoomStatus(supabaseAdmin, roomId, "WAITING", "IN_PROGRESS");
-  return insertGameState(supabaseAdmin, roomId, "IN_PROGRESS", 1);
+  await updateRoomStatus(
+    supabaseAdmin,
+    roomId,
+    ROOM_STATUS.WAITING,
+    ROOM_STATUS.PLAYING
+  );
+  return insertGameState(
+    supabaseAdmin,
+    roomId,
+    "IN_PROGRESS",
+    1
+  );
 };
 
 /**
@@ -220,7 +233,9 @@ export const voteChapter = async (
 
   const room = await fetchRoomById(readClient, roomId);
   if (!room) throw new HttpError(404, "Room not found");
-  if (room.status !== "IN_PROGRESS") throw new HttpError(409, "Game is not in progress");
+  if (room.status !== ROOM_STATUS.PLAYING) {
+    throw new HttpError(409, "Game is not in progress");
+  }
 
   const player = await fetchPlayer(readClient, roomId, userId);
   if (!player) throw new HttpError(403, "Not a room player");
@@ -274,7 +289,9 @@ export const resolveChapter = async (
 ): Promise<GameState> => {
   const { room, isHost } = await ensureMembership(clientToken, roomId, userId);
   if (!isHost) throw new HttpError(403, "Only host can resolve");
-  if (room.status !== "IN_PROGRESS") throw new HttpError(409, "Game is not in progress");
+  if (room.status !== ROOM_STATUS.PLAYING) {
+    throw new HttpError(409, "Game is not in progress");
+  }
 
   const state = await ensureGameState(clientToken, roomId);
 
@@ -289,7 +306,9 @@ export const resolveChapter = async (
   const { majority, winners } = computeMajority(votes);
 
   const nextPhase: GamePhase =
-    chapter.order >= LAST_CHAPTER_ORDER ? "FINAL_VOTE" : "IN_PROGRESS";
+    chapter.order >= LAST_CHAPTER_ORDER
+      ? "FINAL_VOTE"
+      : "IN_PROGRESS";
   const nextOrder = chapter.order >= LAST_CHAPTER_ORDER ? null : chapter.order + 1;
 
   await applyChapterResolution(
@@ -320,7 +339,10 @@ export const voteLeader = async (
 
   const room = await fetchRoomById(readClient, roomId);
   if (!room) throw new HttpError(404, "Room not found");
-  if (room.status !== "FINAL_VOTE") throw new HttpError(409, "Final vote not started");
+  const state = await ensureGameState(clientToken, roomId);
+  if (state.phase !== "FINAL_VOTE") {
+    throw new HttpError(409, "Final vote not started");
+  }
 
   const voter = await fetchPlayer(readClient, roomId, userId);
   if (!voter) throw new HttpError(403, "Not a room player");
@@ -365,7 +387,10 @@ export const resolveFinal = async (
 ): Promise<{ winnerUserId: string; total: number }> => {
   const { room, isHost } = await ensureMembership(clientToken, roomId, userId);
   if (!isHost) throw new HttpError(403, "Only host can resolve");
-  if (room.status !== "FINAL_VOTE") throw new HttpError(409, "Final vote not started");
+  const state = await ensureGameState(clientToken, roomId);
+  if (state.phase !== "FINAL_VOTE") {
+    throw new HttpError(409, "Final vote not started");
+  }
 
   const votes = await listLeaderVotes(supabaseAdmin, roomId);
   if (votes.length === 0) throw new HttpError(409, "No votes to resolve");
@@ -407,7 +432,9 @@ export const getFinalResult = async (
   await ensureMembership(clientToken, roomId, userId);
 
   const state = await ensureGameState(clientToken, roomId);
-  if (state.phase !== "FINISHED") throw new HttpError(409, "Game not finished");
+  if (state.phase !== "FINISHED") {
+    throw new HttpError(409, "Game not finished");
+  }
 
   const client = createUserClient(clientToken);
   const votes = await listLeaderVotes(client, roomId);
