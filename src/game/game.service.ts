@@ -1,7 +1,7 @@
 import { PostgrestError } from "@supabase/supabase-js";
 
 import { HttpError } from "../common/http-error";
-import { createUserClient } from "../supabase/supabase.client";
+import { createUserClient, supabaseAdmin } from "../supabase/supabase.client";
 import {
   Room,
   countPlayers,
@@ -58,8 +58,7 @@ const STORY_CHAPTERS: Omit<Chapter, "id" | "room_id">[] = [
   {
     order: 4,
     title: "Escape vs Stay",
-    description:
-      "지금 위치를 사수할 것인가, 탈출을 시도할 것인가?",
+    description: "지금 위치를 사수할 것인가, 탈출을 시도할 것인가?",
     option_a_label: "현 위치 사수 (Seongyeol)",
     option_b_label: "집단 탈출 시도 (Jaemyeon)",
   },
@@ -67,24 +66,23 @@ const STORY_CHAPTERS: Omit<Chapter, "id" | "room_id">[] = [
 
 const LAST_CHAPTER_ORDER = STORY_CHAPTERS.length;
 
+/**
+ * ====== 멤버십 확인/조회는 User Client (RLS) ======
+ */
 const ensureMembership = async (
   clientToken: string,
   roomId: string,
   userId: string
 ): Promise<{ room: Room; isHost: boolean }> => {
   const client = createUserClient(clientToken);
+
   const room = await fetchRoomById(client, roomId);
-  if (!room) {
-    throw new HttpError(404, "Room not found");
-  }
-  if (room.host_user_id === userId) {
-    return { room, isHost: true };
-  }
+  if (!room) throw new HttpError(404, "Room not found");
+
+  if (room.host_user_id === userId) return { room, isHost: true };
 
   const player = await fetchPlayer(client, roomId, userId);
-  if (!player) {
-    throw new HttpError(403, "Access denied");
-  }
+  if (!player) throw new HttpError(403, "Access denied");
 
   return { room, isHost: false };
 };
@@ -95,28 +93,23 @@ const ensureGameState = async (
 ): Promise<GameState> => {
   const client = createUserClient(clientToken);
   const state = await fetchGameState(client, roomId);
-  if (!state) {
-    throw new HttpError(409, "Game not started");
-  }
+  if (!state) throw new HttpError(409, "Game not started");
   return state;
 };
 
-const ensureChapters = async (
-  clientToken: string,
-  roomId: string
-) => {
-  const client = createUserClient(clientToken);
-  const existing = await listChapters(client, roomId);
-  if (existing.length > 0) {
-    return;
-  }
+/**
+ * ====== 챕터 초기 생성은 Write 작업 → Admin ======
+ */
+const ensureChapters = async (roomId: string) => {
+  const existing = await listChapters(supabaseAdmin, roomId);
+  if (existing.length > 0) return;
 
   const chapters = STORY_CHAPTERS.map((chapter) => ({
     ...chapter,
     room_id: roomId,
   }));
 
-  await insertChapters(client, chapters);
+  await insertChapters(supabaseAdmin, chapters);
 };
 
 const computeMajority = (
@@ -124,17 +117,13 @@ const computeMajority = (
 ): { majority: "A" | "B"; winners: string[] } => {
   let countA = 0;
   let countB = 0;
+
   for (const vote of votes) {
-    if (vote.choice === "A") {
-      countA += 1;
-    } else {
-      countB += 1;
-    }
+    if (vote.choice === "A") countA += 1;
+    else countB += 1;
   }
 
-  if (countA === countB) {
-    throw new HttpError(409, "Vote is tied");
-  }
+  if (countA === countB) throw new HttpError(409, "Vote is tied");
 
   const majority = countA > countB ? "A" : "B";
   const winners = votes
@@ -144,39 +133,40 @@ const computeMajority = (
   return { majority, winners };
 };
 
+/**
+ * ====== 게임 시작은 상태 변경(Write) → Admin ======
+ */
 export const startGame = async (
   clientToken: string,
   roomId: string,
   userId: string
 ): Promise<GameState> => {
-  const client = createUserClient(clientToken);
-  const room = await fetchRoomById(client, roomId);
-  if (!room) {
-    throw new HttpError(404, "Room not found");
-  }
-  if (room.host_user_id !== userId) {
-    throw new HttpError(403, "Only host can start");
-  }
-  if (room.status !== "WAITING") {
-    throw new HttpError(409, "Room already started");
-  }
+  // host 체크는 user client로 해도 되지만, 여기선 일관되게 조회는 user client
+  const readClient = createUserClient(clientToken);
 
-  const playerCount = await countPlayers(client, roomId);
+  const room = await fetchRoomById(readClient, roomId);
+  if (!room) throw new HttpError(404, "Room not found");
+  if (room.host_user_id !== userId) throw new HttpError(403, "Only host can start");
+  if (room.status !== "WAITING") throw new HttpError(409, "Room already started");
+
+  const playerCount = await countPlayers(readClient, roomId);
   if (playerCount < 3 || playerCount % 2 === 0) {
     throw new HttpError(409, "Room must have an odd number of players");
   }
 
-  await ensureChapters(clientToken, roomId);
+  // 챕터/상태 생성은 write → admin
+  await ensureChapters(roomId);
 
-  const currentState = await fetchGameState(client, roomId);
-  if (currentState) {
-    throw new HttpError(409, "Game already started");
-  }
+  const currentState = await fetchGameState(supabaseAdmin, roomId);
+  if (currentState) throw new HttpError(409, "Game already started");
 
-  await updateRoomStatus(client, roomId, "WAITING", "IN_PROGRESS");
-  return insertGameState(client, roomId, "IN_PROGRESS", 1);
+  await updateRoomStatus(supabaseAdmin, roomId, "WAITING", "IN_PROGRESS");
+  return insertGameState(supabaseAdmin, roomId, "IN_PROGRESS", 1);
 };
 
+/**
+ * ====== 조회는 그대로 ======
+ */
 export const getGameState = async (
   clientToken: string,
   roomId: string,
@@ -192,8 +182,7 @@ export const listRoomChapters = async (
   userId: string
 ): Promise<Chapter[]> => {
   await ensureMembership(clientToken, roomId, userId);
-  const client = createUserClient(clientToken);
-  return listChapters(client, roomId);
+  return listChapters(createUserClient(clientToken), roomId);
 };
 
 export const getCurrentChapter = async (
@@ -202,22 +191,24 @@ export const getCurrentChapter = async (
   userId: string
 ): Promise<Chapter> => {
   await ensureMembership(clientToken, roomId, userId);
+
   const state = await ensureGameState(clientToken, roomId);
-  if (!state.current_chapter_order) {
-    throw new HttpError(409, "No active chapter");
-  }
-  const client = createUserClient(clientToken);
+  if (!state.current_chapter_order) throw new HttpError(409, "No active chapter");
+
   const chapter = await fetchChapterByOrder(
-    client,
+    createUserClient(clientToken),
     roomId,
     state.current_chapter_order
   );
-  if (!chapter) {
-    throw new HttpError(404, "Chapter not found");
-  }
+  if (!chapter) throw new HttpError(404, "Chapter not found");
   return chapter;
 };
 
+/**
+ * ====== 챕터 투표는 Write → Admin ======
+ * - 단, 멤버십/상태 확인은 read client로 해도 되고 admin으로 해도 됨
+ * - 여기선 확인(read)은 user client, insert/카운트/resolve(write)는 admin으로
+ */
 export const voteChapter = async (
   clientToken: string,
   roomId: string,
@@ -225,25 +216,20 @@ export const voteChapter = async (
   userId: string,
   choice: "A" | "B"
 ): Promise<{ state: GamePhase; vote: ChapterVote }> => {
-  const client = createUserClient(clientToken);
-  const room = await fetchRoomById(client, roomId);
-  if (!room) {
-    throw new HttpError(404, "Room not found");
-  }
-  if (room.status !== "IN_PROGRESS") {
-    throw new HttpError(409, "Game is not in progress");
-  }
+  const readClient = createUserClient(clientToken);
 
-  const player = await fetchPlayer(client, roomId, userId);
-  if (!player) {
-    throw new HttpError(403, "Not a room player");
-  }
+  const room = await fetchRoomById(readClient, roomId);
+  if (!room) throw new HttpError(404, "Room not found");
+  if (room.status !== "IN_PROGRESS") throw new HttpError(409, "Game is not in progress");
+
+  const player = await fetchPlayer(readClient, roomId, userId);
+  if (!player) throw new HttpError(403, "Not a room player");
 
   const state = await ensureGameState(clientToken, roomId);
-  const chapter = await fetchChapterById(client, roomId, chapterId);
-  if (!chapter) {
-    throw new HttpError(404, "Chapter not found");
-  }
+
+  // chapter 조회는 readClient로 OK
+  const chapter = await fetchChapterById(readClient, roomId, chapterId);
+  if (!chapter) throw new HttpError(404, "Chapter not found");
   if (chapter.order !== state.current_chapter_order) {
     throw new HttpError(409, "Chapter is not active");
   }
@@ -251,7 +237,7 @@ export const voteChapter = async (
   let vote: ChapterVote;
   try {
     vote = await insertChapterVote(
-      client,
+      supabaseAdmin,
       roomId,
       chapterId,
       userId,
@@ -259,19 +245,18 @@ export const voteChapter = async (
     );
   } catch (error) {
     const pgError = error as PostgrestError;
-    if (pgError?.code === "23505") {
-      throw new HttpError(409, "Already voted");
-    }
+    if (pgError?.code === "23505") throw new HttpError(409, "Already voted");
     throw error;
   }
 
   const [voteCount, playerCount] = await Promise.all([
-    countChapterVotes(client, roomId, chapterId),
-    countPlayers(client, roomId),
+    countChapterVotes(supabaseAdmin, roomId, chapterId),
+    countPlayers(supabaseAdmin, roomId),
   ]);
 
   if (voteCount < playerCount) {
-    return { state: room.status, vote };
+    // room.status는 IN_PROGRESS일 테니 그대로
+    return { state: room.status as GamePhase, vote };
   }
 
   await resolveChapter(clientToken, roomId, chapterId, userId);
@@ -279,51 +264,37 @@ export const voteChapter = async (
   return { state: refreshed.phase, vote };
 };
 
+/**
+ * ====== 챕터 결과 확정은 Write → Admin ======
+ */
 export const resolveChapter = async (
   clientToken: string,
   roomId: string,
   chapterId: string,
   userId: string
 ): Promise<GameState> => {
-  const { room, isHost } = await ensureMembership(
-    clientToken,
-    roomId,
-    userId
-  );
-  if (!isHost) {
-    throw new HttpError(403, "Only host can resolve");
-  }
-  if (room.status !== "IN_PROGRESS") {
-    throw new HttpError(409, "Game is not in progress");
-  }
+  const { room, isHost } = await ensureMembership(clientToken, roomId, userId);
+  if (!isHost) throw new HttpError(403, "Only host can resolve");
+  if (room.status !== "IN_PROGRESS") throw new HttpError(409, "Game is not in progress");
 
   const state = await ensureGameState(clientToken, roomId);
-  const client = createUserClient(clientToken);
-  const chapter = await fetchChapterById(client, roomId, chapterId);
-  if (!chapter) {
-    throw new HttpError(404, "Chapter not found");
-  }
-  if (chapter.order !== state.current_chapter_order) {
-    throw new HttpError(409, "Chapter is not active");
-  }
 
-  const votes = await listChapterVotes(client, roomId, chapterId);
-  if (votes.length === 0) {
-    throw new HttpError(409, "No votes to resolve");
-  }
+  // chapter/votes 조회는 admin으로 통일(어차피 resolve는 admin write)
+  const chapter = await fetchChapterById(supabaseAdmin, roomId, chapterId);
+  if (!chapter) throw new HttpError(404, "Chapter not found");
+  if (chapter.order !== state.current_chapter_order) throw new HttpError(409, "Chapter is not active");
+
+  const votes = await listChapterVotes(supabaseAdmin, roomId, chapterId);
+  if (votes.length === 0) throw new HttpError(409, "No votes to resolve");
 
   const { majority, winners } = computeMajority(votes);
+
   const nextPhase: GamePhase =
-    chapter.order >= LAST_CHAPTER_ORDER
-      ? "FINAL_VOTE"
-      : "IN_PROGRESS";
-  const nextOrder =
-    chapter.order >= LAST_CHAPTER_ORDER
-      ? null
-      : chapter.order + 1;
+    chapter.order >= LAST_CHAPTER_ORDER ? "FINAL_VOTE" : "IN_PROGRESS";
+  const nextOrder = chapter.order >= LAST_CHAPTER_ORDER ? null : chapter.order + 1;
 
   await applyChapterResolution(
-    client,
+    supabaseAdmin,
     roomId,
     chapterId,
     majority,
@@ -332,43 +303,36 @@ export const resolveChapter = async (
     nextOrder
   );
 
-  return fetchGameState(client, roomId).then((state) => {
-    if (!state) {
-      throw new HttpError(409, "Game state missing");
-    }
-    return state;
-  });
+  const refreshed = await fetchGameState(supabaseAdmin, roomId);
+  if (!refreshed) throw new HttpError(409, "Game state missing");
+  return refreshed;
 };
 
+/**
+ * ====== 리더 투표는 Write → Admin ======
+ */
 export const voteLeader = async (
   clientToken: string,
   roomId: string,
   userId: string,
   targetUserId: string
 ): Promise<LeaderVote> => {
-  const client = createUserClient(clientToken);
-  const room = await fetchRoomById(client, roomId);
-  if (!room) {
-    throw new HttpError(404, "Room not found");
-  }
-  if (room.status !== "FINAL_VOTE") {
-    throw new HttpError(409, "Final vote not started");
-  }
+  const readClient = createUserClient(clientToken);
 
-  const voter = await fetchPlayer(client, roomId, userId);
-  if (!voter) {
-    throw new HttpError(403, "Not a room player");
-  }
+  const room = await fetchRoomById(readClient, roomId);
+  if (!room) throw new HttpError(404, "Room not found");
+  if (room.status !== "FINAL_VOTE") throw new HttpError(409, "Final vote not started");
 
-  const target = await fetchPlayer(client, roomId, targetUserId);
-  if (!target) {
-    throw new HttpError(422, "Target not in room");
-  }
+  const voter = await fetchPlayer(readClient, roomId, userId);
+  if (!voter) throw new HttpError(403, "Not a room player");
+
+  const target = await fetchPlayer(readClient, roomId, targetUserId);
+  if (!target) throw new HttpError(422, "Target not in room");
 
   let vote: LeaderVote;
   try {
     vote = await insertLeaderVote(
-      client,
+      supabaseAdmin,
       roomId,
       userId,
       targetUserId,
@@ -376,15 +340,13 @@ export const voteLeader = async (
     );
   } catch (error) {
     const pgError = error as PostgrestError;
-    if (pgError?.code === "23505") {
-      throw new HttpError(409, "Already voted");
-    }
+    if (pgError?.code === "23505") throw new HttpError(409, "Already voted");
     throw error;
   }
 
   const [voteCount, playerCount] = await Promise.all([
-    countLeaderVotes(client, roomId),
-    countPlayers(client, roomId),
+    countLeaderVotes(supabaseAdmin, roomId),
+    countPlayers(supabaseAdmin, roomId),
   ]);
 
   if (voteCount >= playerCount) {
@@ -394,38 +356,30 @@ export const voteLeader = async (
   return vote;
 };
 
+/**
+ * ====== 최종 확정은 Write → Admin ======
+ */
 export const resolveFinal = async (
   clientToken: string,
   roomId: string,
   userId: string
 ): Promise<{ winnerUserId: string; total: number }> => {
-  const { room, isHost } = await ensureMembership(
-    clientToken,
-    roomId,
-    userId
-  );
-  if (!isHost) {
-    throw new HttpError(403, "Only host can resolve");
-  }
-  if (room.status !== "FINAL_VOTE") {
-    throw new HttpError(409, "Final vote not started");
-  }
+  const { room, isHost } = await ensureMembership(clientToken, roomId, userId);
+  if (!isHost) throw new HttpError(403, "Only host can resolve");
+  if (room.status !== "FINAL_VOTE") throw new HttpError(409, "Final vote not started");
 
-  const client = createUserClient(clientToken);
-  const votes = await listLeaderVotes(client, roomId);
-  if (votes.length === 0) {
-    throw new HttpError(409, "No votes to resolve");
-  }
+  const votes = await listLeaderVotes(supabaseAdmin, roomId);
+  if (votes.length === 0) throw new HttpError(409, "No votes to resolve");
 
   const totals = new Map<string, number>();
   for (const vote of votes) {
-    const current = totals.get(vote.target_user_id) ?? 0;
-    totals.set(vote.target_user_id, current + vote.weight);
+    totals.set(vote.target_user_id, (totals.get(vote.target_user_id) ?? 0) + vote.weight);
   }
 
   let winnerUserId = "";
   let maxWeight = -1;
   let tied = false;
+
   for (const [userIdKey, total] of totals.entries()) {
     if (total > maxWeight) {
       winnerUserId = userIdKey;
@@ -436,37 +390,38 @@ export const resolveFinal = async (
     }
   }
 
-  if (tied) {
-    throw new HttpError(409, "Leader vote is tied");
-  }
+  if (tied) throw new HttpError(409, "Leader vote is tied");
 
-  await applyFinalResolution(client, roomId);
+  await applyFinalResolution(supabaseAdmin, roomId);
 
   return { winnerUserId, total: maxWeight };
 };
 
+/**
+ * ====== 결과 조회/리더보드/투표조회는 read client 유지 ======
+ */
 export const getFinalResult = async (
   clientToken: string,
   roomId: string,
   userId: string
 ): Promise<{ winnerUserId: string; totals: Record<string, number> }> => {
   await ensureMembership(clientToken, roomId, userId);
+
   const state = await ensureGameState(clientToken, roomId);
-  if (state.phase !== "FINISHED") {
-    throw new HttpError(409, "Game not finished");
-  }
+  if (state.phase !== "FINISHED") throw new HttpError(409, "Game not finished");
 
   const client = createUserClient(clientToken);
   const votes = await listLeaderVotes(client, roomId);
+
   const totals: Record<string, number> = {};
   for (const vote of votes) {
-    totals[vote.target_user_id] =
-      (totals[vote.target_user_id] ?? 0) + vote.weight;
+    totals[vote.target_user_id] = (totals[vote.target_user_id] ?? 0) + vote.weight;
   }
 
   let winnerUserId = "";
   let maxWeight = -1;
   let tied = false;
+
   for (const [userIdKey, total] of Object.entries(totals)) {
     if (total > maxWeight) {
       winnerUserId = userIdKey;
@@ -477,9 +432,7 @@ export const getFinalResult = async (
     }
   }
 
-  if (tied) {
-    throw new HttpError(409, "Leader vote is tied");
-  }
+  if (tied) throw new HttpError(409, "Leader vote is tied");
 
   return { winnerUserId, totals };
 };
@@ -490,11 +443,11 @@ export const getLeaderboard = async (
   userId: string
 ): Promise<Player[]> => {
   await ensureMembership(clientToken, roomId, userId);
+
   const client = createUserClient(clientToken);
   const players = await listPlayers(client, roomId);
-  return players.sort(
-    (a, b) => b.influence_score - a.influence_score
-  );
+
+  return players.sort((a, b) => b.influence_score - a.influence_score);
 };
 
 export const getChapterVotes = async (
@@ -504,6 +457,7 @@ export const getChapterVotes = async (
   userId: string
 ): Promise<ChapterVote[]> => {
   await ensureMembership(clientToken, roomId, userId);
+
   const client = createUserClient(clientToken);
   return listChapterVotes(client, roomId, chapterId);
 };
