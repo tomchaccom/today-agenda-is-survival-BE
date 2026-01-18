@@ -1,42 +1,44 @@
 import jwt from "jsonwebtoken";
 
-/**
- * JWT payload 표준 타입
- * - 프로젝트 전역에서 이 형태만 사용
- */
 export type JwtPayload = {
-  userId: string;
-  email?: string;
-  provider?: "google";
-  role?: "authenticated";
+  userId: string;              // uuid
+  email: string;
+  provider: "google";
+  role: "user" | "admin";
 };
 
-/**
- * Access Token 검증
- * - userId가 없으면 에러로 처리 (타입/런타임 모두 안전)
- */
 export function verifyAccessToken(token: string): JwtPayload {
   const secret = process.env.JWT_ACCESS_SECRET;
   if (!secret) {
     throw new Error("JWT_ACCESS_SECRET is not defined");
   }
 
-  const decoded = jwt.verify(token, secret) as any;
+  const decoded = jwt.verify(token, secret) as jwt.JwtPayload;
 
-  // 🔒 런타임 가드 (TS 몰라도 안전)
-  const userId =
-    decoded?.userId ??
-    decoded?.sub ??
-    decoded?.id;
+  // 1️⃣ uuid (sub) 검증
+  if (typeof decoded.sub !== "string") {
+    throw new Error("Invalid JWT payload: sub missing");
+  }
 
-  if (typeof userId !== "string") {
-    throw new Error("Invalid JWT payload: userId not found");
+  // 2️⃣ email 검증
+  if (typeof decoded.email !== "string") {
+    throw new Error("Invalid JWT payload: email missing");
+  }
+
+  // 3️⃣ provider 검증
+  if (decoded.provider !== "google") {
+    throw new Error("Invalid JWT payload: provider");
+  }
+
+  // 4️⃣ role 검증
+  if (decoded.role !== "authenticated") {
+    throw new Error("Invalid JWT payload: role");
   }
 
   return {
-    userId,
-    email: decoded.email,
-    provider: decoded.provider,
-    role: decoded.role,
+    userId: decoded.sub,        // uuid
+    email: decoded.email,       // string 확정
+    provider: "google",         // 🔥 리터럴로 고정
+    role: "user",      // 🔥 리터럴로 고정
   };
 }
