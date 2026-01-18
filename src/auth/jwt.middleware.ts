@@ -1,32 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import jwt, { JwtPayload } from "jsonwebtoken";
-
-/**
- * Access Token Payload 타입
- * - userId === Supabase users.id (uuid)
- */
-interface AccessTokenPayload extends JwtPayload {
-  sub: string; // uuid
-  email: string;
-  provider: "google";
-  role: "user" | "admin";
-}
-
-/**
- * JWT 검증 유틸
- */
-function verifyAccessToken(token: string): AccessTokenPayload {
-  const decoded = jwt.verify(
-    token,
-    process.env.JWT_SECRET!
-  ) as AccessTokenPayload;
-
-  if (!decoded.sub || typeof decoded.sub !== "string") {
-    throw new Error("Invalid token payload (missing sub)");
-  }
-
-  return decoded;
-}
+import jwt from "jsonwebtoken";
+import { verifyAccessToken } from "./jwt.util";
 
 /**
  * 인증 미들웨어
@@ -59,10 +33,10 @@ export const requireAuth = (
      * - email 은 보조 정보
      */
     req.user = {
-      userId: payload.sub,
+      userId: payload.userId,
       email: payload.email,
-      provider: payload.provider,
-      role: payload.role,
+      provider: "google",
+      role: "user",
     };
 
     req.authToken = token;

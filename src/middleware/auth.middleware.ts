@@ -26,8 +26,8 @@ export const requireAuth = (
     req.user = {
       userId: payload.userId,
       email: payload.email,
-      provider: payload.provider, // 🔥 추가
-      role: payload.role,         // 🔥 추가
+      provider: "google",
+      role: "user",
     };
 
     req.authToken = token;
