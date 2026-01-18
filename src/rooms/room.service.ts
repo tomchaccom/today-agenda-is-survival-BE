@@ -99,32 +99,29 @@ export const joinRoom = async (
     console.log("[JOIN_ROOM] insert success", player);
     return player;
   } catch (err) {
-    console.error("[JOIN_ROOM] ERROR RAW =", err);
+    console.error("[JOIN_ROOM] ERROR KEYS =", Object.keys(err as any));
+  console.error("[JOIN_ROOM] ERROR JSON =", JSON.stringify(err, null, 2));
 
-    // 이미 의도된 HttpError면 그대로 전달
-    if (err instanceof HttpError) {
-      throw err;
-    }
-
-    // Supabase/Postgrest 에러 처리
-    const pg = err as Partial<PostgrestError>;
-
-    if (pg.code === "23505") {
-      throw new HttpError(409, "Already joined");
-    }
-
-    if (pg.code === "23503") {
-      throw new HttpError(400, "Invalid room or user");
-    }
-
-    // 그 외 모든 경우
-    throw new HttpError(
-      500,
-      pg.message || "Failed to join room"
-    );
+  if (err instanceof HttpError) {
+    throw err;
   }
-};
 
+  const pg = err as any;
+
+  if (pg.code === "23505") {
+    throw new HttpError(409, "Already joined");
+  }
+
+  if (pg.code === "23503") {
+    throw new HttpError(400, "Invalid room or user");
+  }
+
+  throw new HttpError(
+    500,
+    pg.message || "Failed to join room"
+  );
+}
+}
 
 
 export const getRoom = async (
