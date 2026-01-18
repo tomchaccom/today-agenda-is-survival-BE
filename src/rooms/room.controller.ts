@@ -9,6 +9,60 @@ import {
   joinRoom,
 } from "./room.service";
 
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Room:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           example: "room-uuid"
+ *         hostUserId:
+ *           type: string
+ *           example: "user-uuid"
+ *         capacity:
+ *           type: integer
+ *           example: 3
+ *         status:
+ *           type: string
+ *           example: waiting
+ *         createdAt:
+ *           type: string
+ *           format: date-time
+ *
+ *     Player:
+ *       type: object
+ *       properties:
+ *         userId:
+ *           type: string
+ *           example: "user-uuid"
+ *         nickname:
+ *           type: string
+ *           example: "방장"
+ *
+ *     CreateRoomRequest:
+ *       type: object
+ *       required: [nickname]
+ *       properties:
+ *         capacity:
+ *           type: integer
+ *           example: 3
+ *         nickname:
+ *           type: string
+ *           example: "방장"
+ *
+ *     JoinRoomRequest:
+ *       type: object
+ *       required: [nickname]
+ *       properties:
+ *         nickname:
+ *           type: string
+ *           example: "참가자1"
+ */
+
+
 const router = Router();
 
 /**
@@ -34,8 +88,31 @@ function requireParam(value: unknown, name: string): string {
 }
 
 /**
- * 방 생성
+ * @swagger
+ * /rooms:
+ *   post:
+ *     summary: 방 생성
+ *     tags: [Room]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/CreateRoomRequest'
+ *     responses:
+ *       201:
+ *         description: 방 생성 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 room:
+ *                   $ref: '#/components/schemas/Room'
+ *       401:
+ *         description: 인증 실패
  */
+
 router.post("/", requireAuth, async (req: Request, res: Response) => {
   try {
     assertAuthenticated(req);
@@ -62,8 +139,35 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
 });
 
 /**
- * 방 참여
+ * @swagger
+ * /rooms/{roomId}/join:
+ *   post:
+ *     summary: 방 참여
+ *     tags: [Room]
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/JoinRoomRequest'
+ *     responses:
+ *       201:
+ *         description: 방 참여 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 player:
+ *                   $ref: '#/components/schemas/Player'
  */
+
 router.post("/:roomId/join", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
@@ -89,8 +193,29 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
 });
 
 /**
- * 방 상세 조회
+ * @swagger
+ * /rooms/{roomId}:
+ *   get:
+ *     summary: 방 상세 조회
+ *     tags: [Room]
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 방 정보 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 room:
+ *                   $ref: '#/components/schemas/Room'
  */
+
 router.get("/:roomId", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
@@ -110,8 +235,31 @@ router.get("/:roomId", requireAuth, async (req, res) => {
 });
 
 /**
- * 방 참여자 목록 조회
+ * @swagger
+ * /rooms/{roomId}/players:
+ *   get:
+ *     summary: 방 참여자 목록 조회
+ *     tags: [Room]
+ *     parameters:
+ *       - in: path
+ *         name: roomId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: 방 참여자 리스트
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 players:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Player'
  */
+
 router.get("/:roomId/players", requireAuth, async (req, res) => {
   try {
     assertAuthenticated(req);
