@@ -1,6 +1,6 @@
 import { PostgrestError } from "@supabase/supabase-js";
 import { HttpError } from "../common/http-error";
-import { createUserClient, supabaseAdmin } from "../supabase/supabase.client";
+import { supabaseAdmin } from "../supabase/supabase.client";
 import {
   Player,
   Room,
@@ -19,13 +19,10 @@ const ALLOWED_CAPACITIES = new Set([3, 5, 7, 9]);
  * ====== 공통 검증 (조회용, RLS 기반) ======
  */
 const ensureMembership = async (
-  clientToken: string,
   roomId: string,
   userId: string
 ): Promise<{ room: Room; isHost: boolean }> => {
-  const client = createUserClient(clientToken);
-
-  const room = await fetchRoomById(client, roomId);
+  const room = await fetchRoomById(supabaseAdmin, roomId);
   if (!room) {
     throw new HttpError(404, "Room not found");
   }
@@ -34,7 +31,7 @@ const ensureMembership = async (
     return { room, isHost: true };
   }
 
-  const player = await fetchPlayer(client, roomId, userId);
+  const player = await fetchPlayer(supabaseAdmin, roomId, userId);
   if (!player) {
     throw new HttpError(403, "Access denied");
   }
@@ -46,7 +43,6 @@ const ensureMembership = async (
  * ====== 방 생성 (🔥 server write → admin) ======
  */
 export const createRoom = async (
-  clientToken: string,
   userId: string,
   capacity: number,
   nickname?: string
@@ -72,7 +68,6 @@ export const createRoom = async (
  * ====== 방 참여 (🔥 server write → admin) ======
  */
 export const joinRoom = async (
-  clientToken: string,
   roomId: string,
   userId: string,
   nickname?: string
@@ -123,40 +118,26 @@ export const joinRoom = async (
  * ====== 조회 APIs (RLS 기반) ======
  */
 export const getRoom = async (
-  clientToken: string,
   roomId: string,
   userId: string
 ): Promise<Room> => {
-  const { room } = await ensureMembership(
-    clientToken,
-    roomId,
-    userId
-  );
+  const { room } = await ensureMembership(roomId, userId);
   return room;
 };
 
 export const getRoomPlayers = async (
-  clientToken: string,
   roomId: string,
   userId: string
 ): Promise<Player[]> => {
-  await ensureMembership(clientToken, roomId, userId);
+  await ensureMembership(roomId, userId);
 
-  return listPlayers(
-    createUserClient(clientToken),
-    roomId
-  );
+  return listPlayers(supabaseAdmin, roomId);
 };
 
 export const getRoomStatus = async (
-  clientToken: string,
   roomId: string,
   userId: string
 ): Promise<RoomStatus> => {
-  const { room } = await ensureMembership(
-    clientToken,
-    roomId,
-    userId
-  );
+  const { room } = await ensureMembership(roomId, userId);
   return room.status;
 };

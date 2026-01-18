@@ -103,7 +103,6 @@ router.post("/:roomId/game/start", requireAuth, async (req: Request, res: Respon
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const state = await startGame(
-      req.authToken,
       roomId,
       req.user.userId
     );
@@ -138,7 +137,6 @@ router.get("/:roomId/game/state", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const state = await getGameState(
-      req.authToken,
       roomId,
       req.user.userId
     );
@@ -173,7 +171,6 @@ router.get("/:roomId/chapters", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const chapters = await listRoomChapters(
-      req.authToken,
       roomId,
       req.user.userId
     );
@@ -208,7 +205,6 @@ router.get("/:roomId/chapters/current", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const chapter = await getCurrentChapter(
-      req.authToken,
       roomId,
       req.user.userId
     );
@@ -263,7 +259,6 @@ router.post(
       }
 
       const result = await voteChapter(
-        req.authToken,
         roomId,
         chapterId,
         req.user.userId,
@@ -296,7 +291,6 @@ router.post(
       const chapterId = requireParam(req.params.chapterId, "chapterId");
 
       const state = await resolveChapter(
-        req.authToken,
         roomId,
         chapterId,
         req.user.userId
@@ -337,7 +331,6 @@ router.post("/:roomId/final/leader-vote", requireAuth, async (req, res) => {
     }
 
     const vote = await voteLeader(
-      req.authToken,
       roomId,
       req.user.userId,
       targetUserId
@@ -364,7 +357,6 @@ router.post("/:roomId/final/resolve", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const result = await resolveFinal(
-      req.authToken,
       roomId,
       req.user.userId
     );
@@ -390,7 +382,6 @@ router.get("/:roomId/final/result", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const result = await getFinalResult(
-      req.authToken,
       roomId,
       req.user.userId
     );
@@ -416,7 +407,6 @@ router.get("/:roomId/leaderboard", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     const players = await getLeaderboard(
-      req.authToken,
       roomId,
       req.user.userId
     );
@@ -446,7 +436,6 @@ router.get(
       const chapterId = requireParam(req.params.chapterId, "chapterId");
 
       const votes = await getChapterVotes(
-        req.authToken,
         roomId,
         chapterId,
         req.user.userId
