@@ -73,7 +73,7 @@ export const fetchPlayer = async (
   userId: string
 ): Promise<Player | null> => {
   const { data, error } = await client
-    .from("players")
+    .from("room_players")
     .select("*")
     .eq("room_id", roomId)
     .eq("user_id", userId)
@@ -90,7 +90,7 @@ export const insertPlayer = async (
   nickname?: string
 ): Promise<Player> => {
   const { data, error } = await client
-    .from("players")
+    .from("room_players")
     .insert({
       room_id: roomId,
       user_id: userId,
@@ -108,7 +108,7 @@ export const listPlayers = async (
   roomId: string
 ): Promise<Player[]> => {
   const { data, error } = await client
-    .from("players")
+    .from("room_players")
     .select("*")
     .eq("room_id", roomId);
 
@@ -121,7 +121,7 @@ export const countPlayers = async (
   roomId: string
 ): Promise<number> => {
   const { count, error } = await client
-    .from("players")
+    .from("room_players")
     .select("id", { count: "exact", head: true })
     .eq("room_id", roomId);
 

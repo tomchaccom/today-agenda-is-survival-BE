@@ -252,7 +252,7 @@ export const listPlayers = async (
   roomId: string
 ): Promise<Player[]> => {
   const { data, error } = await client
-    .from("players")
+    .from("room_players")
     .select("id,room_id,user_id,nickname,influence_score")
     .eq("room_id", roomId);
 
@@ -266,7 +266,7 @@ export const fetchPlayer = async (
   userId: string
 ): Promise<Player | null> => {
   const { data, error } = await client
-    .from("players")
+    .from("room_players")
     .select("id,room_id,user_id,nickname,influence_score")
     .eq("room_id", roomId)
     .eq("user_id", userId)
@@ -283,7 +283,7 @@ export const updatePlayerInfluence = async (
   influenceScore: number
 ): Promise<void> => {
   const { error } = await client
-    .from("players")
+    .from("room_players")
     .update({ influence_score: influenceScore })
     .eq("room_id", roomId)
     .eq("user_id", userId);
