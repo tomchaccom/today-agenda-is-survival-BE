@@ -7,6 +7,7 @@ import authRouter from "./auth/auth.controller";
 import { swaggerSpec } from "./config/swagger";
 import roomRouter from "./rooms/room.controller";
 import gameRouter from "./game/game.controller";
+import jwt from "jsonwebtoken";
 
 
 
@@ -58,4 +59,26 @@ export default app;
 
 app.listen(4000, () => {
   console.log("Server running on port 4000");
+});
+
+app.get("/__debug/jwt", (req, res) => {
+  console.log("[DEBUG] headers =", req.headers);
+
+  try {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith("Bearer ")) {
+      return res.status(400).json({ error: "no bearer" });
+    }
+
+    const token = auth.slice(7);
+    const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET!);
+
+    return res.json({
+      ok: true,
+      decoded,
+    });
+  } catch (e) {
+    console.error("[DEBUG] jwt error", e);
+    return res.status(401).json({ error: String(e) });
+  }
 });
