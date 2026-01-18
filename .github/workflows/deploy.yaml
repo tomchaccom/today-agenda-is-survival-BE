@@ -24,7 +24,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      # ✅ 배포용 디렉토리 (코드만)
+      # 배포용 디렉토리
       - name: Prepare deploy directory
         run: |
           mkdir deploy
@@ -42,7 +42,7 @@ jobs:
           remote_user: ${{ secrets.EC2_USER }}
           remote_key: ${{ secrets.EC2_SSH_KEY }}
 
-      - name: Reload server with PM2
+      - name: Restart server with PM2 (safe)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -51,5 +51,10 @@ jobs:
           script: |
             cd /home/ubuntu/server
             npm ci --omit=dev
-            pm2 reload /home/ubuntu/ecosystem.config.js
+
+            pm2 delete all || true
+            pm2 start /home/ubuntu/ecosystem.config.js --env production
             pm2 save
+
+            pm2 list
+            pm2 describe qltkek-api
