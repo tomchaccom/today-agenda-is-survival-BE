@@ -146,4 +146,33 @@ router.get("/google/callback", async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
+router.post("/dev/login", async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).end();
+  }
+
+  const { email } = req.body;
+
+  const { data: user } = await supabaseAdmin
+    .from("users")
+    .select("id, email")
+    .eq("email", email)
+    .single();
+
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  const { accessToken, refreshToken } = await issueTokens({
+    id: user.id,
+    email: user.email,
+  });
+
+  return res.json({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+});
+
 export default router;
