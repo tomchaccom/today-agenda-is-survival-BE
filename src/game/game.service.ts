@@ -334,7 +334,7 @@ export const voteLeader = async (
       roomId,
       userId,
       targetUserId,
-      voter.influence_score
+      voter.score
     );
   } catch (error) {
     const pgError = error as PostgrestError;
@@ -443,7 +443,7 @@ export const getLeaderboard = async (
   await ensureMembership(roomId, userId);
   const players = await listPlayers(supabaseAdmin, roomId);
 
-  return players.sort((a, b) => b.influence_score - a.influence_score);
+  return players.sort((a, b) => b.score - a.score);
 };
 
 export const getChapterVotes = async (

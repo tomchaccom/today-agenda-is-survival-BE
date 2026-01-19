@@ -48,7 +48,7 @@ export type Player = {
   room_id: string;
   user_id: string;
   nickname: string | null;
-  influence_score: number;
+  score: number;
 };
 
 
@@ -253,7 +253,7 @@ export const listPlayers = async (
 ): Promise<Player[]> => {
   const { data, error } = await client
     .from("room_players")
-    .select("room_id,user_id,nickname,influence_score")
+    .select("room_id,user_id,nickname,score")
     .eq("room_id", roomId);
 
   if (error) throw error;
