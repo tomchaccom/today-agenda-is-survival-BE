@@ -160,3 +160,23 @@ export const resolveRoom = async (
 
   if (error) throw error;
 };
+
+export const insertVote = async (
+    client: SupabaseClient,
+    roomId: string,
+    questionId: number,
+    userId: string,
+    decision: "A" | "B"
+  ) => {
+    const { error } = await client
+      .from("votes")
+      .insert({
+        room_id: roomId,
+        question_id: questionId,
+        user_id: userId,
+        decision,
+      });
+  
+    if (error) throw error;
+  };
+  

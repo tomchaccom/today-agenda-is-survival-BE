@@ -4,6 +4,7 @@ import { HttpError } from "../common/http-error";
 import { requireAuth } from "../middleware/require-auth";
 import { assertAuthenticated } from "../auth/auth.util";
 import { resolveChapter } from "./chapters.service";
+import { getCurrentQuestion, voteForQuestion} from "./chapters.service";
 
 const router = Router();
 
@@ -42,3 +43,78 @@ router.post(
 );
 
 export default router;
+
+/**
+ * @swagger
+ * /rooms/{roomId}/chapters/current:
+ *   get:
+ *     tags: [Chapters]
+ *     summary: 현재 질문 조회
+ *     security:
+ *       - bearerAuth: []
+ */
+router.get(
+    "/rooms/:roomId/chapters/current",
+    requireAuth,
+    async (req, res) => {
+      try {
+        assertAuthenticated(req);
+  
+        const { roomId } = req.params;
+
+        if (typeof roomId !== "string") {
+            throw new HttpError(400, "Invalid roomId");
+          }
+        const question = await getCurrentQuestion(roomId);
+  
+        res.status(200).json(question);
+      } catch (e) {
+        const status = e instanceof HttpError ? e.status : 500;
+        res.status(status).json({ error: (e as Error).message });
+      }
+    }
+  );
+  
+  /**
+ * @swagger
+ * /rooms/{roomId}/chapters/{questionId}/vote:
+ *   post:
+ *     tags: [Chapters]
+ *     summary: 현재 질문에 투표
+ *     security:
+ *       - bearerAuth: []
+ */
+router.post(
+    "/rooms/:roomId/chapters/:questionId/vote",
+    requireAuth,
+    async (req, res) => {
+      try {
+        assertAuthenticated(req);
+  
+        const { roomId, questionId } = req.params;
+        const { decision } = req.body;
+
+        if (typeof roomId !== "string") {
+            throw new HttpError(400, "Invalid roomId");
+          }
+          
+        const qid = Number(questionId);
+        if (Number.isNaN(qid)) {
+            throw new HttpError(400, "Invalid questionId");
+        }
+  
+        await voteForQuestion(
+          roomId,
+          qid,
+          req.user.userId,
+          decision
+        );
+  
+        res.status(201).json({ ok: true });
+      } catch (e) {
+        const status = e instanceof HttpError ? e.status : 500;
+        res.status(status).json({ error: (e as Error).message });
+      }
+    }
+  );
+  

@@ -8,6 +8,7 @@ import {
   incrementPlayerScores,
   insertRoomResult,
   resolveRoom,
+  insertVote,
 } from "./chapters.repository";
 import {
     QuestionRow,
@@ -247,3 +248,43 @@ export const resolveChapter = async (roomId: string) => {
     };
   }
 };
+export const getCurrentQuestion = async (roomId: string) => {
+    const question = await fetchCurrentQuestion(supabaseAdmin, roomId);
+  
+    return {
+      id: question.id,
+      chapter: question.chapter,
+      qnum: question.qnum,
+      is_final: question.is_final,
+      content: question.content,
+    };
+  };
+  
+  export const voteForQuestion = async (
+    roomId: string,
+    questionId: number,
+    userId: string,
+    decision: "A" | "B"
+  ) => {
+    if (decision !== "A" && decision !== "B") {
+      throw new HttpError(400, "Invalid decision");
+    }
+  
+    try {
+      await insertVote(
+        supabaseAdmin,
+        roomId,
+        questionId,
+        userId,
+        decision
+      );
+    } catch (err: any) {
+      if (err.code === "23505") {
+        throw new HttpError(409, "Already voted");
+      }
+      throw err;
+    }
+  
+    return { ok: true };
+  };
+  
