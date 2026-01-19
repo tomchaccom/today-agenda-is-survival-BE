@@ -202,26 +202,20 @@ export const voteChapter = async (
   chapterId: string,
   userId: string,
   choice: "A" | "B"
-): Promise<{ state: GamePhase; vote: ChapterVote }> => {
+): Promise<{ vote: ChapterVote }> => {
   const room = await fetchRoomById(supabaseAdmin, roomId);
-  if (!room) {
-    throw new HttpError(404, "Room not found");
-  }
+  if (!room) throw new HttpError(404, "Room not found");
   if (room.status !== ROOM_STATUS.PLAYING) {
     throw new HttpError(409, "Game is not in progress");
   }
 
   const player = await fetchPlayer(supabaseAdmin, roomId, userId);
-  if (!player) {
-    throw new HttpError(403, "Not a room player");
-  }
+  if (!player) throw new HttpError(403, "Not a room player");
 
   const state = await ensureGameState(roomId);
 
   const chapter = await fetchChapterById(supabaseAdmin, roomId, chapterId);
-  if (!chapter) {
-    throw new HttpError(404, "Chapter not found");
-  }
+  if (!chapter) throw new HttpError(404, "Chapter not found");
   if (chapter.order !== state.current_chapter_order) {
     throw new HttpError(409, "Chapter is not active");
   }
@@ -243,26 +237,10 @@ export const voteChapter = async (
     throw new HttpError(500, pgError?.message || "Database error");
   }
 
-  const [voteCount, playerCount] = await Promise.all([
-    countChapterVotes(supabaseAdmin, roomId, chapterId),
-    countPlayers(supabaseAdmin, roomId),
-  ]);
-
-  if (voteCount < playerCount) {
-    return {
-      state: state.phase,
-      vote,
-    };
-  }
-
-  await resolveChapter(roomId, chapterId, userId);
-  const refreshed = await ensureGameState(roomId);
-
-  return {
-    state: refreshed.phase,
-    vote,
-  };
+  // ✅ 여기서 끝 — resolve 절대 안 함
+  return { vote };
 };
+
 
 /**
  * ====== 챕터 결과 확정은 Write → Admin ======
@@ -315,7 +293,7 @@ export const voteLeader = async (
   userId: string,
   choice: "A" | "B"
 ): Promise<LeaderVote> => {
-  const { isHost } = await ensureMembership(roomId, userId);
+  await ensureMembership(roomId, userId);
 
   const state = await ensureGameState(roomId);
   if (state.phase !== "FINAL_VOTE") {
@@ -342,17 +320,10 @@ export const voteLeader = async (
     throw new HttpError(500, pgError?.message || "Database error");
   }
 
-  const [voteCount, playerCount] = await Promise.all([
-    countLeaderVotes(supabaseAdmin, roomId),
-    countPlayers(supabaseAdmin, roomId),
-  ]);
-
-  if (voteCount >= playerCount && isHost) {
-    await resolveFinal(roomId, userId);
-  }
-
+  // ✅ resolveFinal 호출 제거
   return vote;
 };
+
 
 
 
