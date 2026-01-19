@@ -40,7 +40,7 @@ export interface LeaderVote {
   id: string;
   room_id: string;
   voter_user_id: string;
-  target_user_id: "A" | "B"; // 🔥 의미 변경
+  choice: "A" | "B"; // 🔥 의미 변경
   weight: number;
   created_at: string;
 }
@@ -307,15 +307,16 @@ export const insertLeaderVote = async (
     .insert({
       room_id: roomId,
       voter_user_id: voterUserId,
-      target_user_id: choice, // 🔥 여기!
+      choice,
       weight,
     })
-    .select("id, room_id, voter_user_id, target_user_id, weight, created_at")
+    .select("id, room_id, voter_user_id, choice, weight, created_at")
     .single();
 
   if (error) throw error;
   return data;
 };
+
 
 
 
@@ -338,12 +339,13 @@ export const listLeaderVotes = async (
 ): Promise<LeaderVote[]> => {
   const { data, error } = await client
     .from("leader_votes")
-    .select("id,room_id,voter_user_id,target_user_id,weight,created_at")
+    .select("id, room_id, voter_user_id, choice, weight, created_at")
     .eq("room_id", roomId);
 
   if (error) throw error;
   return data ?? [];
 };
+
 
 
 export const applyChapterResolution = async (

@@ -443,7 +443,7 @@ export const getFinalResult = async (
 
   const totals: Record<string, number> = {};
   for (const vote of votes) {
-    totals[vote.target_user_id] = (totals[vote.target_user_id] ?? 0) + vote.weight;
+    totals[vote.choice] = (totals[vote.choice] ?? 0) + vote.weight;
   }
 
   let winnerUserId = "";
