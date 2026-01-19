@@ -132,7 +132,7 @@ router.get("/google/callback", async (req, res) => {
     });
 
     // ✅ 프론트로 이동
-    // return res.redirect(`${FRONT_URL}/play`);
+    return res.redirect(`${FRONT_URL}/play`);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Internal Server Error" });
