@@ -37,6 +37,9 @@ router.get("/google", (req, res) => {
 /**
  * Google OAuth 콜백
  */
+/**
+ * Google OAuth 콜백
+ */
 router.get("/google/callback", async (req, res) => {
   try {
     const code = req.query.code;
@@ -91,31 +94,45 @@ router.get("/google/callback", async (req, res) => {
     const { accessToken, refreshToken } = await issueTokens(authUser);
 
     /* ===============================
-       ✅ OAuth 전용 쿠키 옵션 (핵심)
+       ✅ OAuth 쿠키 옵션 (단 하나)
        =============================== */
-    const oauthCookieOptions = {
-      secure: true,                  // ⭐ 필수
-      sameSite: "none" as const,     // ⭐ 필수
+    const cookieOptions = {
       domain: ".qltkek.shop",
       path: "/",
+      secure: true,
+      sameSite: "none" as const,
     };
 
-    // refresh token (HttpOnly)
+    /* ===============================
+       🧹 과거 쿠키 정리 (중요)
+       =============================== */
+    res.clearCookie("refresh_token", cookieOptions);
+    res.clearCookie("access_token", cookieOptions);
+
+    // 혹시 예전에 domain 없이 만든 쿠키까지 제거
+    res.clearCookie("refresh_token", { path: "/" });
+    res.clearCookie("access_token", { path: "/" });
+
+    /* ===============================
+       🍪 새 쿠키 세팅
+       =============================== */
+
+    // refresh token
     res.cookie("refresh_token", refreshToken, {
-      ...oauthCookieOptions,
+      ...cookieOptions,
       httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // access token (JS에서 안 쓰면 HttpOnly 권장)
+    // access token
     res.cookie("access_token", accessToken, {
-      ...oauthCookieOptions,
+      ...cookieOptions,
       httpOnly: true,
       maxAge: 15 * 60 * 1000,
     });
 
     // ✅ 프론트로 이동
-    return res.redirect(`${FRONT_URL}/play`);
+    // return res.redirect(`${FRONT_URL}/play`);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Internal Server Error" });
