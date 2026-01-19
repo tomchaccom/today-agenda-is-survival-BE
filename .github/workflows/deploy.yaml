@@ -2,7 +2,7 @@ name: Node Server CI/CD
 
 on:
   push:
-    branches: [ "backend/test/14" ]
+    branches: [ "main" ]
 
 jobs:
   build-and-deploy:
