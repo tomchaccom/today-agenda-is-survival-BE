@@ -147,8 +147,14 @@ router.get("/google/callback", async (req, res) => {
 /**
  * 🧪 개발용 로그인 (POST 유지 권장)
  */
+
+const allowDevLogin =
+  process.env.NODE_ENV !== "production" ||
+  process.env.ALLOW_DEV_LOGIN === "true";
+
 router.post("/dev/login", async (req, res) => {
-  if (isProd) {
+  // 🚫 production + ALLOW_DEV_LOGIN !== true → 차단
+  if (!allowDevLogin) {
     return res.status(404).end();
   }
 
@@ -157,13 +163,13 @@ router.post("/dev/login", async (req, res) => {
     return res.status(400).json({ error: "email is required" });
   }
 
-  const { data: user } = await supabaseAdmin
+  const { data: user, error } = await supabaseAdmin
     .from("users")
     .select("id, email")
     .eq("email", email)
     .single();
 
-  if (!user) {
+  if (error || !user) {
     return res.status(404).json({ error: "User not found" });
   }
 
@@ -178,5 +184,4 @@ router.post("/dev/login", async (req, res) => {
     refresh_token: refreshToken,
   });
 });
-
 export default router;
