@@ -44,6 +44,11 @@ components:
           type: string
           example: "Unauthorized"
 
+    Choice:
+      type: string
+      enum: [A, B]
+      example: A
+
     HealthResponse:
       type: string
       example: ok
@@ -210,8 +215,7 @@ components:
       required: [choice]
       properties:
         choice:
-          type: string
-          enum: [A, B]
+          $ref: "#/components/schemas/Choice"
 
     ChapterVote:
       type: object
@@ -229,8 +233,7 @@ components:
           type: string
           example: "user-uuid"
         choice:
-          type: string
-          enum: [A, B]
+          $ref: "#/components/schemas/Choice"
 
     LeaderVote:
       type: object
@@ -245,8 +248,7 @@ components:
           type: string
           example: "user-uuid"
         choice:
-          type: string
-          enum: [A, B]
+          $ref: "#/components/schemas/Choice"
         weight:
           type: number
           format: float
@@ -260,8 +262,7 @@ components:
       required: [choice]
       properties:
         choice:
-          type: string
-          enum: [A, B]
+          $ref: "#/components/schemas/Choice"
           description: "A = Seongyeol, B = Jaemyeon"
 
     FinalResolveResponse:
@@ -804,6 +805,9 @@ paths:
     post:
       summary: 챕터 투표
       tags: [Vote]
+      description: |
+        이 API는 투표만 저장합니다.
+        ⚠️ 결과 확정은 방장이 /rooms/{roomId}/chapters/{chapterId}/resolve 를 호출해야 합니다.
       security:
         - bearerAuth: []
       parameters:
@@ -844,6 +848,9 @@ paths:
     post:
       summary: 챕터 결과 확정 (방장 전용)
       tags: [Chapter]
+      description: |
+        🔒 방장 전용 엔드포인트입니다.
+        챕터 투표를 집계하고 다음 챕터 또는 FINAL_VOTE 단계로 진행합니다.
       security:
         - bearerAuth: []
       parameters:
@@ -902,6 +909,9 @@ paths:
     post:
       summary: 리더 투표
       tags: [Final]
+      description: |
+        이 API는 리더 투표만 저장합니다.
+        ⚠️ 최종 결과 확정은 방장이 /rooms/{roomId}/final/resolve 를 호출해야 합니다.
       security:
         - bearerAuth: []
       parameters:
@@ -937,6 +947,9 @@ paths:
     post:
       summary: 최종 결과 확정 (방장 전용)
       tags: [Final]
+      description: |
+        🔒 방장 전용 엔드포인트입니다.
+        리더(가중치 합산)와 MVP를 확정하고 게임 상태를 FINISHED로 변경합니다.
       security:
         - bearerAuth: []
       parameters:
