@@ -1,6 +1,11 @@
 // src/rooms/room.repository.ts
-import { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { ROOM_STATUS, RoomStatus } from "./room.status";
+import { HttpError } from "../common/http-error";
+
+/* ================================
+ * Types
+ * ================================ */
 
 export interface Room {
   id: string;
@@ -19,6 +24,10 @@ export interface Player {
   joined_at: string;
 }
 
+/* ================================
+ * Rooms
+ * ================================ */
+
 export const insertRoom = async (
   client: SupabaseClient,
   hostUserId: string,
@@ -34,7 +43,13 @@ export const insertRoom = async (
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to create room"
+    );
+  }
+
   return data;
 };
 
@@ -48,7 +63,13 @@ export const fetchRoomById = async (
     .eq("id", roomId)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to fetch room"
+    );
+  }
+
   return data;
 };
 
@@ -64,8 +85,17 @@ export const updateRoomStatus = async (
     .eq("id", roomId)
     .eq("status", from);
 
-  if (error) throw error;
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to update room status"
+    );
+  }
 };
+
+/* ================================
+ * Players
+ * ================================ */
 
 export const fetchPlayer = async (
   client: SupabaseClient,
@@ -79,7 +109,13 @@ export const fetchPlayer = async (
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to fetch player"
+    );
+  }
+
   return data;
 };
 
@@ -99,7 +135,13 @@ export const insertPlayer = async (
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to insert player"
+    );
+  }
+
   return data;
 };
 
@@ -112,7 +154,13 @@ export const listPlayers = async (
     .select("*")
     .eq("room_id", roomId);
 
-  if (error) throw error;
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to list players"
+    );
+  }
+
   return data ?? [];
 };
 
@@ -120,11 +168,19 @@ export const countPlayers = async (
   client: SupabaseClient,
   roomId: string
 ): Promise<number> => {
-  const { count, error } = await client
+  const { data, error } = await client
     .from("room_players")
-    .select("id", { count: "exact", head: true })
+    .select("*")
     .eq("room_id", roomId);
 
-  if (error) throw error;
-  return count ?? 0;
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to count players"
+    );
+  }
+
+  return data.length;
 };
+
+

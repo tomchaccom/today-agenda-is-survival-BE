@@ -8,6 +8,9 @@ import { swaggerSpec } from "./config/swagger";
 import roomRouter from "./rooms/room.controller";
 import gameRouter from "./game/game.controller";
 import jwt from "jsonwebtoken";
+import chaptersRouter from "./chapters/chapters.controller";
+
+
 
 
 
@@ -30,6 +33,7 @@ app.use(
     credentials: true,
   })
 );
+app.use("/rooms", chaptersRouter);
 
 app.use("/rooms", roomRouter);
 app.use("/rooms", gameRouter);

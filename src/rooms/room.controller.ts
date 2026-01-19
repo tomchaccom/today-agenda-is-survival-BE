@@ -171,13 +171,35 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
 
 router.post("/:roomId/join", requireAuth, async (req, res) => {
   try {
-    assertAuthenticated(req);
-    const roomId = requireParam(req.params.roomId, "roomId");
+    console.log("[JOIN] route entered");
 
+    // 🔹 인증 정보
+    console.log("[JOIN] auth header =", req.headers.authorization);
+    console.log("[JOIN] user =", req.user);
+
+    assertAuthenticated(req);
+
+    // 🔹 path param
+    console.log("[JOIN] params =", req.params);
+    const roomId = requireParam(req.params.roomId, "roomId");
+    console.log("[JOIN] roomId =", roomId);
+
+    // 🔹 body
+    console.log("[JOIN] body =", req.body);
     const nickname = req.body?.nickname;
+    console.log("[JOIN] nickname =", nickname, typeof nickname);
+
     if (!nickname || typeof nickname !== "string") {
+      console.warn("[JOIN] invalid nickname");
       return res.status(422).json({ error: "nickname is required" });
     }
+
+    // 🔹 실제 참가 로직
+    console.log("[JOIN] calling joinRoom()", {
+      roomId,
+      userId: req.user.userId,
+      nickname,
+    });
 
     const player = await joinRoom(
       roomId,
@@ -185,12 +207,19 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
       nickname
     );
 
+    console.log("[JOIN] joinRoom success =", player);
+
     res.status(201).json({ player });
   } catch (error) {
+    console.error("[JOIN] ERROR =", error);
+
     const status = error instanceof HttpError ? error.status : 500;
-    res.status(status).json({ error: (error as Error).message });
+    res.status(status).json({
+      error: (error as Error)?.message ?? "Internal Server Error",
+    });
   }
 });
+
 
 router.get("/test-auth", requireAuth, (req: Request, res: Response) => {
   try {

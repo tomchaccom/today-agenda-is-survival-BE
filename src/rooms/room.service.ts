@@ -1,8 +1,13 @@
 // src/rooms/room.service.ts
-import { PostgrestError } from "@supabase/supabase-js";
+import type {
+  SupabaseClient,
+} from "@supabase/supabase-js";
+
+import { supabaseAdmin } from "../supabase/supabase.client";
 import { HttpError } from "../common/http-error";
-import {  supabaseAdmin } from "../supabase/supabase.client";
-import { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestError } from "@supabase/supabase-js";
+
+
 import {
   Room,
   Player,
@@ -13,9 +18,18 @@ import {
   listPlayers,
   countPlayers,
 } from "./room.repository";
+
 import { ROOM_STATUS, RoomStatus } from "./room.status";
 
+/* ================================
+ * Constants
+ * ================================ */
+
 const ALLOWED_CAPACITIES = new Set([3, 5, 7, 9]);
+
+/* ================================
+ * Internal helpers
+ * ================================ */
 
 const ensureMembership = async (
   client: SupabaseClient,
@@ -28,12 +42,12 @@ const ensureMembership = async (
     throw new HttpError(404, "Room not found");
   }
 
-  // 방장인 경우
+  // 방장
   if (room.host_user_id === userId) {
     return { room, isHost: true };
   }
 
-  // 참가자인지 확인
+  // 참가자 여부 확인
   const player = await fetchPlayer(client, roomId, userId);
   if (!player) {
     throw new HttpError(403, "Access denied");
@@ -41,6 +55,10 @@ const ensureMembership = async (
 
   return { room, isHost: false };
 };
+
+/* ================================
+ * Public services
+ * ================================ */
 
 export const createRoom = async (
   userId: string,
@@ -53,6 +71,7 @@ export const createRoom = async (
 
   const room = await insertRoom(supabaseAdmin, userId, capacity);
 
+  // 방장은 자동 참가
   await insertPlayer(
     supabaseAdmin,
     room.id,
@@ -63,37 +82,54 @@ export const createRoom = async (
   return room;
 };
 
-
 export const joinRoom = async (
   roomId: string,
   userId: string,
   nickname?: string
 ): Promise<Player> => {
-  const room = await fetchRoomById(supabaseAdmin, roomId);
-  if (!room) throw new HttpError(404, "Room not found");
-
-  if (room.status !== ROOM_STATUS.WAITING) {
-    throw new HttpError(409, "Room is not joinable");
-  }
-
-  const currentCount = await countPlayers(supabaseAdmin, roomId);
-  if (currentCount >= room.capacity) {
-    throw new HttpError(409, "Room is full");
-  }
+  console.log("[JOIN_ROOM] start", { roomId, userId, nickname });
 
   try {
-    return await insertPlayer(
+    const room = await fetchRoomById(supabaseAdmin, roomId);
+    if (!room) throw new HttpError(404, "Room not found");
+
+    if (room.status !== ROOM_STATUS.WAITING) {
+      throw new HttpError(409, "Room is not joinable");
+    }
+
+    const currentCount = await countPlayers(supabaseAdmin, roomId);
+    if (currentCount >= room.capacity) {
+      throw new HttpError(409, "Room is full");
+    }
+
+    const player = await insertPlayer(
       supabaseAdmin,
       roomId,
       userId,
       nickname
     );
-  } catch (error) {
-    const pg = error as PostgrestError;
-    if (pg.code === "23505") {
+
+    console.log("[JOIN_ROOM] insert success", player);
+    return player;
+  } catch (err: any) {
+    console.error("[JOIN_ROOM] ERROR RAW =", err);
+
+    if (err instanceof HttpError) {
+      throw err;
+    }
+
+    if (err?.code === "23505") {
       throw new HttpError(409, "Already joined");
     }
-    throw error;
+
+    if (err?.code === "23503") {
+      throw new HttpError(400, "Invalid room or user");
+    }
+
+    throw new HttpError(
+      500,
+      err?.message || "Failed to join room"
+    );
   }
 };
 
@@ -110,7 +146,6 @@ export const getRoom = async (
   return room;
 };
 
-
 export const getRoomPlayers = async (
   roomId: string,
   userId: string
@@ -118,8 +153,6 @@ export const getRoomPlayers = async (
   await ensureMembership(supabaseAdmin, roomId, userId);
   return listPlayers(supabaseAdmin, roomId);
 };
-
-
 
 export const getRoomStatus = async (
   roomId: string,
@@ -132,4 +165,3 @@ export const getRoomStatus = async (
   );
   return room.status;
 };
-

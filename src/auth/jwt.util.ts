@@ -33,7 +33,7 @@ export function issueAccessToken(user: {
     },
     secret,
     {
-      expiresIn: "15m",
+      expiresIn: "2h",
     }
   );
 }
