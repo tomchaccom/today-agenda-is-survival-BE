@@ -42,6 +42,8 @@ app.use("/rooms", gameRouter);
    Swagger (API Docs)
 ======================== */
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+app.use("/auth", authRouter);
+
 
 app.get("/api-docs.json", (req, res) => {
   res.json(swaggerSpec);

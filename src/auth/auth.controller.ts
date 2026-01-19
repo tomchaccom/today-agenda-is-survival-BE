@@ -6,6 +6,8 @@ import { exchangeGoogleCode } from "./google.service";
 import { issueTokens } from "./auth.service";
 import type { AuthUser } from "./auth.service";
 import { supabaseAdmin } from "../supabase/supabase.client";
+import { requireAuth } from "./jwt.middleware";
+import { AuthRequest } from "./auth.types";
 
 const router = Router();
 const isProd = process.env.NODE_ENV === "production";
@@ -199,4 +201,21 @@ router.post("/dev/login", async (req, res) => {
     refresh_token: refreshToken,
   });
 });
+function assertAuthenticated(
+  req: AuthRequest
+): asserts req is AuthRequest & { user: { userId: string; email?: string } } {
+  if (!req.user) {
+    throw new HttpError(401, "Unauthorized");
+  }
+}
+
+router.get("/me", requireAuth, (req: AuthRequest, res) => {
+  assertAuthenticated(req);
+
+  res.json({
+    userId: req.user.userId,
+    email: req.user.email,
+  });
+});
+
 export default router;
