@@ -30,12 +30,13 @@ router.get("/google", (req, res) => {
 /**
  * Google OAuth 콜백
  */
+/**
+ * Google OAuth 콜백
+ */
 router.get("/google/callback", async (req, res) => {
   try {
-    /* STEP 1 */
     console.log("[AUTH][CALLBACK] STEP 1: callback entered");
 
-    /* STEP 2 */
     const code = req.query.code;
     console.log("[AUTH][CALLBACK] STEP 2: raw code =", code);
 
@@ -44,27 +45,17 @@ router.get("/google/callback", async (req, res) => {
       return res.status(400).json({ error: "Invalid authorization code" });
     }
 
-    /* STEP 3 */
     console.log("[AUTH][CALLBACK] STEP 3: exchanging Google code");
     const googleUser = await exchangeGoogleCode(code);
 
     const email = googleUser.email;
     const providerUserId = googleUser.providerId;
-
-    console.log("[AUTH][CALLBACK] STEP 3-1: googleUser =", {
-      email,
-      providerUserId,
-    });
+    const displayName = googleUser.name ?? null;
 
     if (!providerUserId) {
-      console.error("[AUTH][CALLBACK] provider_user_id missing");
       return res.status(400).json({ error: "Invalid Google user" });
     }
 
-    // ✅ 타입에 맞는 displayName (이게 정답)
-    const displayName = googleUser.name ?? null;
-
-    /* STEP 4 */
     console.log("[AUTH][CALLBACK] STEP 4: user lookup start");
 
     const { data: user, error: selectError } = await supabaseAdmin
@@ -75,16 +66,11 @@ router.get("/google/callback", async (req, res) => {
       .maybeSingle();
 
     if (selectError) {
-      console.error("[AUTH][CALLBACK] USER LOOKUP FAILED", selectError);
       return res.status(500).json({ error: "User lookup failed" });
     }
 
-    console.log("[AUTH][CALLBACK] STEP 4-1: lookup result =", user);
-
     let userId: string;
-    let isNewUser = false;
 
-    /* STEP 5 */
     if (!user) {
       console.log("[AUTH][CALLBACK] STEP 5: new user, creating");
 
@@ -101,20 +87,14 @@ router.get("/google/callback", async (req, res) => {
         .single();
 
       if (insertError) {
-        console.error("[AUTH][CALLBACK] USER CREATION FAILED", insertError);
         return res.status(500).json({ error: "User creation failed" });
       }
 
       userId = newUser.id;
-      isNewUser = true;
-
-      console.log("[AUTH][CALLBACK] STEP 5-1: user created id =", userId);
     } else {
       userId = user.id;
-      console.log("[AUTH][CALLBACK] STEP 5-1: existing user id =", userId);
     }
 
-    /* STEP 6 */
     console.log("[AUTH][CALLBACK] STEP 6: issuing JWT");
 
     const authUser: AuthUser = {
@@ -124,14 +104,11 @@ router.get("/google/callback", async (req, res) => {
 
     const { accessToken, refreshToken } = await issueTokens(authUser);
 
-    console.log("[AUTH][CALLBACK] STEP 6-1: tokens issued", {
-      accessToken: Boolean(accessToken),
-      refreshToken: Boolean(refreshToken),
-    });
+    /* ===============================
+       ✅ STEP 7: 토큰을 쿠키로 설정
+       =============================== */
 
-    /* STEP 7 */
-    console.log("[AUTH][CALLBACK] STEP 7: setting refresh token cookie");
-
+    // 🔐 refresh token (HttpOnly)
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
       sameSite: "lax",
@@ -140,15 +117,23 @@ router.get("/google/callback", async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    /* STEP 8 */
-    console.log("[AUTH][CALLBACK] STEP 8: response send");
-
-    return res.status(200).json({
-      ok: true,
-      access_token: accessToken,
-      token_type: "Bearer",
-      isNewUser,
+    // 🔓 access token (프론트에서 사용)
+    res.cookie("access_token", accessToken, {
+      httpOnly: false,        // 프론트 JS에서 읽어야 하면 false
+      sameSite: "lax",
+      secure: isProd,
+      path: "/",
+      maxAge: 15 * 60 * 1000, // 15분
     });
+
+    /* ===============================
+       ✅ STEP 8: 프론트로 리다이렉트
+       =============================== */
+
+    console.log("[AUTH][CALLBACK] STEP 8: redirect to /play");
+
+    return res.redirect("http://localhost:3000/play");
+
   } catch (error) {
     console.error("[AUTH][CALLBACK] UNHANDLED ERROR", error);
 
@@ -161,5 +146,4 @@ router.get("/google/callback", async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
-
 export default router;
