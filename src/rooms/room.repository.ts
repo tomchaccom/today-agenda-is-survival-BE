@@ -20,7 +20,7 @@ export interface Player {
   room_id: string;
   user_id: string;
   nickname: string | null;
-  influence_score: number;
+  score: number;
   joined_at: string;
 }
 
@@ -184,3 +184,40 @@ export const countPlayers = async (
 };
 
 
+export const listRooms = async (
+  client: SupabaseClient,
+  filters: {
+    status?: string;
+    minPlayers?: number;
+    onlyJoinable?: boolean;
+  }
+) => {
+  let query = client
+    .from("rooms")
+    .select(`
+      id,
+      status,
+      capacity,
+      current_qnum,
+      host_user_id,
+      created_at,
+      room_players(count)
+    `);
+
+  if (filters.status) {
+    query = query.eq("status", filters.status);
+  }
+
+  if (filters.onlyJoinable) {
+    query = query.eq("status", "WAITING");
+  }
+
+  if (filters.minPlayers) {
+    query = query.gte("room_players.count", filters.minPlayers);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return data;
+};

@@ -6,17 +6,23 @@ import { exchangeGoogleCode } from "./google.service";
 import { issueTokens } from "./auth.service";
 import type { AuthUser } from "./auth.service";
 import { supabaseAdmin } from "../supabase/supabase.client";
+import { requireAuth } from "./jwt.middleware";
+import { AuthRequest } from "./auth.types";
 
 const router = Router();
 const isProd = process.env.NODE_ENV === "production";
+
+// ✅ 프론트 URL 환경 분기
+const FRONT_URL = isProd
+  ? "https://qltkek.shop"
+  : "http://localhost:3000";
 
 /**
  * Google OAuth 시작
  */
 router.get("/google", (req, res) => {
-  console.log("[AUTH][GOOGLE] STEP 0: redirect to Google OAuth");
-
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+
   authUrl.searchParams.append("client_id", process.env.GOOGLE_CLIENT_ID!);
   authUrl.searchParams.append("redirect_uri", process.env.GOOGLE_REDIRECT_URI!);
   authUrl.searchParams.append("response_type", "code");
@@ -30,65 +36,41 @@ router.get("/google", (req, res) => {
 /**
  * Google OAuth 콜백
  */
+/**
+ * Google OAuth 콜백
+ */
+/**
+ * Google OAuth 콜백
+ */
 router.get("/google/callback", async (req, res) => {
   try {
-    /* STEP 1 */
-    console.log("[AUTH][CALLBACK] STEP 1: callback entered");
-
-    /* STEP 2 */
     const code = req.query.code;
-    console.log("[AUTH][CALLBACK] STEP 2: raw code =", code);
-
     if (typeof code !== "string") {
-      console.error("[AUTH][CALLBACK] INVALID CODE");
       return res.status(400).json({ error: "Invalid authorization code" });
     }
 
-    /* STEP 3 */
-    console.log("[AUTH][CALLBACK] STEP 3: exchanging Google code");
     const googleUser = await exchangeGoogleCode(code);
 
     const email = googleUser.email;
     const providerUserId = googleUser.providerId;
-
-    console.log("[AUTH][CALLBACK] STEP 3-1: googleUser =", {
-      email,
-      providerUserId,
-    });
+    const displayName = googleUser.name ?? null;
 
     if (!providerUserId) {
-      console.error("[AUTH][CALLBACK] provider_user_id missing");
       return res.status(400).json({ error: "Invalid Google user" });
     }
 
-    // ✅ 타입에 맞는 displayName (이게 정답)
-    const displayName = googleUser.name ?? null;
-
-    /* STEP 4 */
-    console.log("[AUTH][CALLBACK] STEP 4: user lookup start");
-
-    const { data: user, error: selectError } = await supabaseAdmin
+    // 🔍 사용자 조회
+    const { data: user } = await supabaseAdmin
       .from("users")
       .select("id, email")
       .eq("provider", "google")
       .eq("provider_user_id", providerUserId)
       .maybeSingle();
 
-    if (selectError) {
-      console.error("[AUTH][CALLBACK] USER LOOKUP FAILED", selectError);
-      return res.status(500).json({ error: "User lookup failed" });
-    }
-
-    console.log("[AUTH][CALLBACK] STEP 4-1: lookup result =", user);
-
     let userId: string;
-    let isNewUser = false;
 
-    /* STEP 5 */
     if (!user) {
-      console.log("[AUTH][CALLBACK] STEP 5: new user, creating");
-
-      const { data: newUser, error: insertError } = await supabaseAdmin
+      const { data: newUser, error } = await supabaseAdmin
         .from("users")
         .insert({
           email,
@@ -100,66 +82,140 @@ router.get("/google/callback", async (req, res) => {
         .select("id")
         .single();
 
-      if (insertError) {
-        console.error("[AUTH][CALLBACK] USER CREATION FAILED", insertError);
+      if (error || !newUser) {
         return res.status(500).json({ error: "User creation failed" });
       }
 
       userId = newUser.id;
-      isNewUser = true;
-
-      console.log("[AUTH][CALLBACK] STEP 5-1: user created id =", userId);
     } else {
       userId = user.id;
-      console.log("[AUTH][CALLBACK] STEP 5-1: existing user id =", userId);
     }
 
-    /* STEP 6 */
-    console.log("[AUTH][CALLBACK] STEP 6: issuing JWT");
-
-    const authUser: AuthUser = {
-      id: userId,
-      email: email ?? "",
-    };
-
+    // 🔐 JWT 발급
+    const authUser: AuthUser = { id: userId, email };
     const { accessToken, refreshToken } = await issueTokens(authUser);
 
-    console.log("[AUTH][CALLBACK] STEP 6-1: tokens issued", {
-      accessToken: Boolean(accessToken),
-      refreshToken: Boolean(refreshToken),
-    });
-
-    /* STEP 7 */
-    console.log("[AUTH][CALLBACK] STEP 7: setting refresh token cookie");
-
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: isProd,
+    /* ===============================
+       ✅ OAuth 쿠키 옵션 (단 하나)
+       =============================== */
+    const cookieOptions = {
+      domain: ".qltkek.shop",
       path: "/",
+      secure: true,
+      sameSite: "none" as const,
+    };
+
+    /* ===============================
+       🧹 과거 쿠키 정리 (중요)
+       =============================== */
+    res.clearCookie("refresh_token", cookieOptions);
+    res.clearCookie("access_token", cookieOptions);
+
+    // 혹시 예전에 domain 없이 만든 쿠키까지 제거
+    res.clearCookie("refresh_token", { path: "/" });
+    res.clearCookie("access_token", { path: "/" });
+
+    /* ===============================
+       🍪 새 쿠키 세팅
+       =============================== */
+
+    // refresh token
+    res.cookie("refresh_token", refreshToken, {
+      ...cookieOptions,
+      httpOnly: true,
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    /* STEP 8 */
-    console.log("[AUTH][CALLBACK] STEP 8: response send");
-
-    return res.status(200).json({
-      ok: true,
-      access_token: accessToken,
-      token_type: "Bearer",
-      isNewUser,
+    // access token
+    res.cookie("access_token", accessToken, {
+      ...cookieOptions,
+      httpOnly: true,
+      maxAge: 15 * 60 * 1000,
     });
+
+    // ✅ 프론트로 이동
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Redirecting...</title>
+        <meta http-equiv="Cache-Control" content="no-store" />
+      </head>
+      <body>
+        <script>
+          // Chrome OAuth + SameSite=None 쿠키 commit 타이밍 보장
+          setTimeout(function () {
+            window.location.replace("${FRONT_URL}/play");
+          }, 50);
+        </script>
+      </body>
+    </html>
+    `);
+    
   } catch (error) {
-    console.error("[AUTH][CALLBACK] UNHANDLED ERROR", error);
-
-    if (error instanceof HttpError) {
-      return res.status(error.status).json({
-        error: error.message || "Request failed",
-      });
-    }
-
+    console.error(error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
+});
+
+
+/**
+ * 🧪 개발용 로그인 (POST 유지 권장)
+ */
+
+const allowDevLogin =
+  process.env.NODE_ENV !== "production" ||
+  process.env.ALLOW_DEV_LOGIN === "true";
+
+router.post("/dev/login", async (req, res) => {
+  // 🚫 production + ALLOW_DEV_LOGIN !== true → 차단
+  if (!allowDevLogin) {
+    return res.status(404).end();
+  }
+
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "email is required" });
+  }
+
+  const { data: user, error } = await supabaseAdmin
+    .from("users")
+    .select("id, email")
+    .eq("email", email)
+    .single();
+
+  if (error || !user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  const { accessToken, refreshToken } = await issueTokens({
+    id: user.id,
+    email: user.email,
+  });
+
+  // ❗ dev/login은 JSON 반환만 (쿠키 X)
+  return res.json({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+});
+function assertAuthenticated(
+  req: AuthRequest
+): asserts req is AuthRequest & { user: { userId: string; email?: string } } {
+  if (!req.user) {
+    throw new HttpError(401, "Unauthorized");
+  }
+}
+
+router.get("/me", requireAuth, (req: AuthRequest, res) => {
+  assertAuthenticated(req);
+
+  res.json({
+    userId: req.user.userId,
+    email: req.user.email,
+  });
 });
 
 export default router;

@@ -321,27 +321,24 @@ router.post(
  */
 
 router.post("/:roomId/final/leader-vote", requireAuth, async (req, res) => {
-  try {
-    assertAuthenticated(req);
-    const roomId = requireParam(req.params.roomId, "roomId");
+  assertAuthenticated(req);
 
-    const targetUserId = req.body?.targetUserId;
-    if (typeof targetUserId !== "string") {
-      return res.status(422).json({ error: "targetUserId is required" });
-    }
+  const roomId = requireParam(req.params.roomId, "roomId");
+  const choice = req.body?.choice;
 
-    const vote = await voteLeader(
-      roomId,
-      req.user.userId,
-      targetUserId
-    );
-
-    res.status(201).json({ vote });
-  } catch (error) {
-    const status = error instanceof HttpError ? error.status : 500;
-    res.status(status).json({ error: (error as Error).message });
+  if (choice !== "A" && choice !== "B") {
+    return res.status(422).json({ error: "choice must be A or B" });
   }
+
+  const vote = await voteLeader(
+    roomId,
+    req.user.userId,
+    choice // 🔥 이제 userId가 아니라 A/B
+  );
+
+  res.status(201).json({ vote });
 });
+
 
 /**
  * @swagger
@@ -352,21 +349,14 @@ router.post("/:roomId/final/leader-vote", requireAuth, async (req, res) => {
  */
 
 router.post("/:roomId/final/resolve", requireAuth, async (req, res) => {
-  try {
-    assertAuthenticated(req);
-    const roomId = requireParam(req.params.roomId, "roomId");
+  assertAuthenticated(req);
 
-    const result = await resolveFinal(
-      roomId,
-      req.user.userId
-    );
+  const roomId = requireParam(req.params.roomId, "roomId");
+  const result = await resolveFinal(roomId, req.user.userId);
 
-    res.status(200).json(result);
-  } catch (error) {
-    const status = error instanceof HttpError ? error.status : 500;
-    res.status(status).json({ error: (error as Error).message });
-  }
+  res.json(result);
 });
+
 
 /**
  * @swagger
@@ -448,5 +438,7 @@ router.get(
     }
   }
 );
+
+
 
 export default router;

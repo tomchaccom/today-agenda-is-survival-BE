@@ -36,21 +36,23 @@ export type ChapterResolution = {
   resolved_at: string;
 };
 
-export type LeaderVote = {
+export interface LeaderVote {
   id: string;
   room_id: string;
   voter_user_id: string;
-  target_user_id: string;
+  choice: "A" | "B"; // 🔥 의미 변경
   weight: number;
-};
+  created_at: string;
+}
+
 
 export type Player = {
-  id: string;
   room_id: string;
   user_id: string;
   nickname: string | null;
-  influence_score: number;
+  score: number;
 };
+
 
 export const fetchGameState = async (
   client: SupabaseClient,
@@ -253,12 +255,13 @@ export const listPlayers = async (
 ): Promise<Player[]> => {
   const { data, error } = await client
     .from("room_players")
-    .select("id,room_id,user_id,nickname,influence_score")
+    .select("room_id,user_id,nickname,score")
     .eq("room_id", roomId);
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as Player[];
 };
+
 
 export const fetchPlayer = async (
   client: SupabaseClient,
@@ -267,24 +270,25 @@ export const fetchPlayer = async (
 ): Promise<Player | null> => {
   const { data, error } = await client
     .from("room_players")
-    .select("id,room_id,user_id,nickname,influence_score")
+    .select("room_id,user_id,nickname,score")
     .eq("room_id", roomId)
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  return (data ?? null) as Player | null;
 };
+
 
 export const updatePlayerInfluence = async (
   client: SupabaseClient,
   roomId: string,
   userId: string,
-  influenceScore: number
+  score: number
 ): Promise<void> => {
   const { error } = await client
     .from("room_players")
-    .update({ influence_score: influenceScore })
+    .update({ score: score })
     .eq("room_id", roomId)
     .eq("user_id", userId);
 
@@ -295,7 +299,7 @@ export const insertLeaderVote = async (
   client: SupabaseClient,
   roomId: string,
   voterUserId: string,
-  targetUserId: string,
+  choice: "A" | "B",
   weight: number
 ): Promise<LeaderVote> => {
   const { data, error } = await client
@@ -303,15 +307,18 @@ export const insertLeaderVote = async (
     .insert({
       room_id: roomId,
       voter_user_id: voterUserId,
-      target_user_id: targetUserId,
+      choice,
       weight,
     })
-    .select("id,room_id,voter_user_id,target_user_id,weight")
+    .select("id, room_id, voter_user_id, choice, weight, created_at")
     .single();
 
   if (error) throw error;
   return data;
 };
+
+
+
 
 export const countLeaderVotes = async (
   client: SupabaseClient,
@@ -332,12 +339,14 @@ export const listLeaderVotes = async (
 ): Promise<LeaderVote[]> => {
   const { data, error } = await client
     .from("leader_votes")
-    .select("id,room_id,voter_user_id,target_user_id,weight")
+    .select("id, room_id, voter_user_id, choice, weight, created_at")
     .eq("room_id", roomId);
 
   if (error) throw error;
   return data ?? [];
 };
+
+
 
 export const applyChapterResolution = async (
   client: SupabaseClient,
