@@ -7,6 +7,7 @@ import {
   getRoom,
   getRoomPlayers,
   joinRoom,
+  getRooms,
 } from "./room.service";
 
 /**
@@ -326,5 +327,22 @@ router.get("/:roomId/players", requireAuth, async (req, res) => {
     res.status(status).json({ error: (error as Error).message });
   }
 });
+
+router.get("/", async (req, res) => {
+  try {
+    const { status, minPlayers, onlyJoinable } = req.query;
+
+    const rooms = await getRooms(null, {
+      status: typeof status === "string" ? status : undefined,
+      minPlayers: minPlayers ? Number(minPlayers) : undefined,
+      onlyJoinable: onlyJoinable === "true",
+    });
+
+    res.json({ rooms });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch rooms" });
+  }
+});
+
 
 export default router;

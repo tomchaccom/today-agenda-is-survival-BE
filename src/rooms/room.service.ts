@@ -17,6 +17,7 @@ import {
   insertPlayer,
   listPlayers,
   countPlayers,
+  listRooms,
 } from "./room.repository";
 
 import { ROOM_STATUS, RoomStatus } from "./room.status";
@@ -164,4 +165,14 @@ export const getRoomStatus = async (
     userId
   );
   return room.status;
+};
+export const getRooms = async (
+  userId: string | null,
+  filters: {
+    status?: string;
+    minPlayers?: number;
+    onlyJoinable?: boolean;
+  }
+) => {
+  return listRooms(supabaseAdmin, filters);
 };
