@@ -315,7 +315,7 @@ export const voteLeader = async (
   userId: string,
   choice: "A" | "B"
 ): Promise<LeaderVote> => {
-  // 1️⃣ 방 멤버십 + 상태 확인
+  // 1️⃣ 멤버십 + 상태 확인
   const { isHost } = await ensureMembership(roomId, userId);
 
   const state = await ensureGameState(roomId);
@@ -330,50 +330,22 @@ export const voteLeader = async (
   }
 
   // 3️⃣ 리더 투표 저장 (A/B + 개인 점수)
-  xexport const voteLeader = async (
-    roomId: string,
-    userId: string,
-    choice: "A" | "B"
-  ): Promise<LeaderVote> => {
-    const { isHost } = await ensureMembership(roomId, userId);
-  
-    const state = await ensureGameState(roomId);
-    if (state.phase !== "FINAL_VOTE") {
-      throw new HttpError(409, "Final vote not started");
+  let vote: LeaderVote;
+  try {
+    vote = await insertLeaderVote(
+      supabaseAdmin,
+      roomId,
+      userId,     // voter_user_id
+      choice,     // 🔥 A | B
+      voter.score // 🔥 가중치
+    );
+  } catch (error) {
+    const pgError = error as PostgrestError;
+    if (pgError?.code === "23505") {
+      throw new HttpError(409, "Already voted");
     }
-  
-    const voter = await fetchPlayer(supabaseAdmin, roomId, userId);
-    if (!voter) throw new HttpError(403, "Not a room player");
-  
-    let vote: LeaderVote;
-    try {
-      vote = await insertLeaderVote(
-        supabaseAdmin,
-        roomId,
-        userId,      // voter_user_id
-        choice,      // 🔥 'A' | 'B'
-        voter.score  // 🔥 개인 점수 = 가중치
-      );
-    } catch (error) {
-      const pgError = error as PostgrestError;
-      if (pgError?.code === "23505") {
-        throw new HttpError(409, "Already voted");
-      }
-      throw new HttpError(500, pgError?.message || "Database error");
-    }
-  
-    const [voteCount, playerCount] = await Promise.all([
-      countLeaderVotes(supabaseAdmin, roomId),
-      countPlayers(supabaseAdmin, roomId),
-    ]);
-  
-    if (voteCount >= playerCount && isHost) {
-      await resolveFinal(roomId, userId);
-    }
-  
-    return vote;
-  };
-  
+    throw new HttpError(500, pgError?.message || "Database error");
+  }
 
   // 4️⃣ 모두 투표했는지 확인
   const [voteCount, playerCount] = await Promise.all([
@@ -381,13 +353,14 @@ export const voteLeader = async (
     countPlayers(supabaseAdmin, roomId),
   ]);
 
-  // 5️⃣ 호스트가 마지막이면 자동 최종 확정
+  // 5️⃣ 호스트면 자동 최종 확정
   if (voteCount >= playerCount && isHost) {
     await resolveFinal(roomId, userId);
   }
 
   return vote;
 };
+
 
 
 /**
