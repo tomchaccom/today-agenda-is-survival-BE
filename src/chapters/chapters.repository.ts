@@ -5,35 +5,47 @@ import { QuestionRow } from "./chapters.types";
 
   
 // ✅ 수정 버전
+// chapters.repository.ts
 export const fetchCurrentQuestion = async (
     client: SupabaseClient,
     roomId: string
   ): Promise<QuestionRow> => {
+  
     const { data, error } = await client
       .from("rooms")
       .select(
         `
-        questions (
+        current_qnum,
+        questions!inner (
           id,
           chapter,
           qnum,
           is_final,
           content
         )
-        `
+      `
       )
       .eq("id", roomId)
       .single();
   
     if (error) throw error;
   
-    const questions = data?.questions as QuestionRow[] | null;
+    const questions = data?.questions;
   
-    if (!questions || questions.length === 0) {
+    if (!Array.isArray(questions) || questions.length === 0) {
       throw new HttpError(404, "Question not found");
     }
   
-    return questions[0]; // ✅ 핵심
+    // ⭐ 핵심: current_qnum에 맞는 질문 1개만 반환
+    const current = questions.find(
+      (q) => q.qnum === data.current_qnum
+    );
+  
+    if (!current) {
+      throw new HttpError(404, "Current question not found");
+    }
+  
+    return current;
   };
   
 
