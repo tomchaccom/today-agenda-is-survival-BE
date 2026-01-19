@@ -20,7 +20,7 @@ export interface Player {
   room_id: string;
   user_id: string;
   nickname: string | null;
-  influence_score: number;
+  score: number;
   joined_at: string;
 }
 

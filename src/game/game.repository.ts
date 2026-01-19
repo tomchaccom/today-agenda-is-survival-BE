@@ -268,7 +268,7 @@ export const fetchPlayer = async (
 ): Promise<Player | null> => {
   const { data, error } = await client
     .from("room_players")
-    .select("room_id,user_id,nickname,influence_score")
+    .select("room_id,user_id,nickname,score")
     .eq("room_id", roomId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -282,11 +282,11 @@ export const updatePlayerInfluence = async (
   client: SupabaseClient,
   roomId: string,
   userId: string,
-  influenceScore: number
+  score: number
 ): Promise<void> => {
   const { error } = await client
     .from("room_players")
-    .update({ influence_score: influenceScore })
+    .update({ score: score })
     .eq("room_id", roomId)
     .eq("user_id", userId);
 
