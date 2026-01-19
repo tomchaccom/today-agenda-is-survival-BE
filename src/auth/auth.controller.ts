@@ -92,22 +92,49 @@ router.get("/google/callback", async (req, res) => {
        =============================== */
 
     // refresh token (HttpOnly)
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
+    const commonCookieOptions = {
+      sameSite: "lax" as const,
       secure: isProd,
-      sameSite: isProd ? "none" : "lax",
       path: "/",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    };
+    
+    // refresh token (HttpOnly)
+    res.cookie(
+      "refresh_token",
+      refreshToken,
+      isProd
+        ? {
+            ...commonCookieOptions,
+            httpOnly: true,
+            domain: ".qltkek.shop",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          }
+        : {
+            ...commonCookieOptions,
+            httpOnly: true,
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          }
+    );
+    
+    // access token
+    res.cookie(
+      "access_token",
+      accessToken,
+      isProd
+        ? {
+            ...commonCookieOptions,
+            httpOnly: false,
+            domain: ".qltkek.shop",
+            maxAge: 15 * 60 * 1000,
+          }
+        : {
+            ...commonCookieOptions,
+            httpOnly: false,
+            maxAge: 15 * 60 * 1000,
+          }
+    );
+    // ===============================
 
-    // access token (프론트에서 읽음)
-    res.cookie("access_token", accessToken, {
-      httpOnly: false,
-      secure: isProd,
-      sameSite: isProd ? "none" : "lax",
-      path: "/",
-      maxAge: 15 * 60 * 1000,
-    });
 
     // ✅ 프론트로 이동
     return res.redirect(`${FRONT_URL}/play`);
