@@ -315,7 +315,6 @@ export const voteLeader = async (
   userId: string,
   choice: "A" | "B"
 ): Promise<LeaderVote> => {
-  // 1️⃣ 멤버십 + 상태 확인
   const { isHost } = await ensureMembership(roomId, userId);
 
   const state = await ensureGameState(roomId);
@@ -323,21 +322,17 @@ export const voteLeader = async (
     throw new HttpError(409, "Final vote not started");
   }
 
-  // 2️⃣ 투표자 확인
   const voter = await fetchPlayer(supabaseAdmin, roomId, userId);
-  if (!voter) {
-    throw new HttpError(403, "Not a room player");
-  }
+  if (!voter) throw new HttpError(403, "Not a room player");
 
-  // 3️⃣ 리더 투표 저장 (A/B + 개인 점수)
   let vote: LeaderVote;
   try {
     vote = await insertLeaderVote(
       supabaseAdmin,
       roomId,
-      userId,     // voter_user_id
-      choice,     // 🔥 A | B
-      voter.score // 🔥 가중치
+      userId,
+      choice,
+      voter.score
     );
   } catch (error) {
     const pgError = error as PostgrestError;
@@ -347,13 +342,11 @@ export const voteLeader = async (
     throw new HttpError(500, pgError?.message || "Database error");
   }
 
-  // 4️⃣ 모두 투표했는지 확인
   const [voteCount, playerCount] = await Promise.all([
     countLeaderVotes(supabaseAdmin, roomId),
     countPlayers(supabaseAdmin, roomId),
   ]);
 
-  // 5️⃣ 호스트면 자동 최종 확정
   if (voteCount >= playerCount && isHost) {
     await resolveFinal(roomId, userId);
   }
@@ -385,35 +378,30 @@ export const resolveFinal = async (
     throw new HttpError(409, "Final phase not reached");
   }
 
-  /** 1️⃣ 마지막 챕터 가져오기 */
-  const finalChapter = await fetchChapterByOrder(
-    supabaseAdmin,
-    roomId,
-    LAST_CHAPTER_ORDER
-  );
-  if (!finalChapter) throw new HttpError(404, "Final chapter not found");
+  /** 1️⃣ 리더 투표 결과 집계 */
+  const votes = await listLeaderVotes(supabaseAdmin, roomId);
+  if (votes.length === 0) {
+    throw new HttpError(409, "No leader votes");
+  }
 
-  const votes = await listChapterVotes(
-    supabaseAdmin,
-    roomId,
-    finalChapter.id
-  );
-  if (votes.length === 0) throw new HttpError(409, "No final votes");
+  const totals = { A: 0, B: 0 };
+  for (const vote of votes) {
+    totals[vote.choice] += vote.weight;
+  }
 
-  const { majority } = computeMajority(votes);
+  if (totals.A === totals.B) {
+    throw new HttpError(409, "Leader vote is tied");
+  }
 
-  /** 2️⃣ 지도자 결정 */
   const leader =
-    majority === "A" ? "SEONGYEOL" : "JAEMYEON";
+    totals.A > totals.B ? "SEONGYEOL" : "JAEMYEON";
 
-  /** 3️⃣ MVP 계산 */
+  /** 2️⃣ MVP 계산 */
   const players = await listPlayers(supabaseAdmin, roomId);
-  const sorted = [...players].sort((a, b) => b.score - a.score);
-  const top = sorted[0];
-
+  const top = [...players].sort((a, b) => b.score - a.score)[0];
   if (!top) throw new HttpError(409, "No players");
 
-  /** 4️⃣ 게임 종료 처리 */
+  /** 3️⃣ 상태 종료 (RPC) */
   await applyFinalResolution(supabaseAdmin, roomId);
 
   return {
@@ -427,43 +415,41 @@ export const resolveFinal = async (
 };
 
 
+
 /**
  * ====== 결과 조회/리더보드/투표조회는 read client 유지 ======
  */
 export const getFinalResult = async (
   roomId: string,
   userId: string
-): Promise<{ winnerUserId: string; totals: Record<string, number> }> => {
+): Promise<{
+  leader: "SEONGYEOL" | "JAEMYEON";
+  totals: { A: number; B: number };
+}> => {
   await ensureMembership(roomId, userId);
 
   const state = await ensureGameState(roomId);
-  if (state.phase !== "FINISHED") throw new HttpError(409, "Game not finished");
+  if (state.phase !== "FINISHED") {
+    throw new HttpError(409, "Game not finished");
+  }
 
   const votes = await listLeaderVotes(supabaseAdmin, roomId);
 
-  const totals: Record<string, number> = {};
+  const totals = { A: 0, B: 0 };
   for (const vote of votes) {
-    totals[vote.choice] = (totals[vote.choice] ?? 0) + vote.weight;
+    totals[vote.choice] += vote.weight;
   }
 
-  let winnerUserId = "";
-  let maxWeight = -1;
-  let tied = false;
-
-  for (const [userIdKey, total] of Object.entries(totals)) {
-    if (total > maxWeight) {
-      winnerUserId = userIdKey;
-      maxWeight = total;
-      tied = false;
-    } else if (total === maxWeight) {
-      tied = true;
-    }
+  if (totals.A === totals.B) {
+    throw new HttpError(409, "Leader vote is tied");
   }
 
-  if (tied) throw new HttpError(409, "Leader vote is tied");
+  const leader =
+    totals.A > totals.B ? "SEONGYEOL" : "JAEMYEON";
 
-  return { winnerUserId, totals };
+  return { leader, totals };
 };
+
 
 export const getLeaderboard = async (
   roomId: string,
