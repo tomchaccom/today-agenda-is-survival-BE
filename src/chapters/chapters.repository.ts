@@ -1,38 +1,41 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { HttpError } from "../common/http-error";
+import { QuestionRow } from "./chapters.types";
 
-/**
- * 현재 방의 진행 중 질문 조회
- * rooms.current_qnum 기준
- */
+
+  
+// ✅ 수정 버전
 export const fetchCurrentQuestion = async (
-  client: SupabaseClient,
-  roomId: string
-) => {
-  const { data, error } = await client
-    .from("rooms")
-    .select(
-      `
-      current_qnum,
-      questions (
-        id,
-        chapter,
-        qnum,
-        is_final,
-        content
+    client: SupabaseClient,
+    roomId: string
+  ): Promise<QuestionRow> => {
+    const { data, error } = await client
+      .from("rooms")
+      .select(
+        `
+        questions (
+          id,
+          chapter,
+          qnum,
+          is_final,
+          content
+        )
+        `
       )
-    `
-    )
-    .eq("id", roomId)
-    .single();
-
-  if (error) throw error;
-  if (!data || !data.questions) {
-    throw new HttpError(404, "Current question not found");
-  }
-
-  return data.questions;
-};
+      .eq("id", roomId)
+      .single();
+  
+    if (error) throw error;
+  
+    const questions = data?.questions as QuestionRow[] | null;
+  
+    if (!questions || questions.length === 0) {
+      throw new HttpError(404, "Question not found");
+    }
+  
+    return questions[0]; // ✅ 핵심
+  };
+  
 
 /**
  * 특정 질문에 대한 A/B 투표 수 집계
