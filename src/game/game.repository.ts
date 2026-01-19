@@ -45,12 +45,12 @@ export type LeaderVote = {
 };
 
 export type Player = {
-  id: string;
   room_id: string;
   user_id: string;
   nickname: string | null;
   influence_score: number;
 };
+
 
 export const fetchGameState = async (
   client: SupabaseClient,
@@ -253,12 +253,13 @@ export const listPlayers = async (
 ): Promise<Player[]> => {
   const { data, error } = await client
     .from("room_players")
-    .select("id,room_id,user_id,nickname,influence_score")
+    .select("room_id,user_id,nickname,influence_score")
     .eq("room_id", roomId);
 
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []) as Player[];
 };
+
 
 export const fetchPlayer = async (
   client: SupabaseClient,
@@ -267,14 +268,15 @@ export const fetchPlayer = async (
 ): Promise<Player | null> => {
   const { data, error } = await client
     .from("room_players")
-    .select("id,room_id,user_id,nickname,influence_score")
+    .select("room_id,user_id,nickname,influence_score")
     .eq("room_id", roomId)
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  return (data ?? null) as Player | null;
 };
+
 
 export const updatePlayerInfluence = async (
   client: SupabaseClient,
