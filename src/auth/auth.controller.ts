@@ -34,6 +34,9 @@ router.get("/google", (req, res) => {
 /**
  * Google OAuth 콜백
  */
+/**
+ * Google OAuth 콜백
+ */
 router.get("/google/callback", async (req, res) => {
   try {
     const code = req.query.code;
@@ -88,53 +91,28 @@ router.get("/google/callback", async (req, res) => {
     const { accessToken, refreshToken } = await issueTokens(authUser);
 
     /* ===============================
-       ✅ 쿠키 설정 (환경 분기 핵심)
+       ✅ OAuth 전용 쿠키 옵션 (핵심)
        =============================== */
-
-    // refresh token (HttpOnly)
-    const commonCookieOptions = {
-      sameSite: "lax" as const,
-      secure: isProd,
+    const oauthCookieOptions = {
+      secure: true,                  // ⭐ 필수
+      sameSite: "none" as const,     // ⭐ 필수
+      domain: ".qltkek.shop",
       path: "/",
     };
-    
-    // refresh token (HttpOnly)
-    res.cookie(
-      "refresh_token",
-      refreshToken,
-      isProd
-        ? {
-            ...commonCookieOptions,
-            httpOnly: true,
-            domain: ".qltkek.shop",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          }
-        : {
-            ...commonCookieOptions,
-            httpOnly: true,
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-          }
-    );
-    
-    // access token
-    res.cookie(
-      "access_token",
-      accessToken,
-      isProd
-        ? {
-            ...commonCookieOptions,
-            httpOnly: false,
-            domain: ".qltkek.shop",
-            maxAge: 15 * 60 * 1000,
-          }
-        : {
-            ...commonCookieOptions,
-            httpOnly: false,
-            maxAge: 15 * 60 * 1000,
-          }
-    );
-    // ===============================
 
+    // refresh token (HttpOnly)
+    res.cookie("refresh_token", refreshToken, {
+      ...oauthCookieOptions,
+      httpOnly: true,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    // access token (JS에서 안 쓰면 HttpOnly 권장)
+    res.cookie("access_token", accessToken, {
+      ...oauthCookieOptions,
+      httpOnly: true,
+      maxAge: 15 * 60 * 1000,
+    });
 
     // ✅ 프론트로 이동
     return res.redirect(`${FRONT_URL}/play`);
@@ -143,6 +121,7 @@ router.get("/google/callback", async (req, res) => {
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
+
 
 /**
  * 🧪 개발용 로그인 (POST 유지 권장)
