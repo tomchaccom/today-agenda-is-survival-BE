@@ -352,21 +352,14 @@ router.post("/:roomId/final/leader-vote", requireAuth, async (req, res) => {
  */
 
 router.post("/:roomId/final/resolve", requireAuth, async (req, res) => {
-  try {
-    assertAuthenticated(req);
-    const roomId = requireParam(req.params.roomId, "roomId");
+  assertAuthenticated(req);
 
-    const result = await resolveFinal(
-      roomId,
-      req.user.userId
-    );
+  const roomId = requireParam(req.params.roomId, "roomId");
+  const result = await resolveFinal(roomId, req.user.userId);
 
-    res.status(200).json(result);
-  } catch (error) {
-    const status = error instanceof HttpError ? error.status : 500;
-    res.status(status).json({ error: (error as Error).message });
-  }
+  res.json(result);
 });
+
 
 /**
  * @swagger

@@ -360,43 +360,63 @@ export const voteLeader = async (
 export const resolveFinal = async (
   roomId: string,
   userId: string
-): Promise<{ winnerUserId: string; total: number }> => {
+): Promise<{
+  leader: "SEONGYEOL" | "JAEMYEON";
+  mvp: {
+    userId: string;
+    nickname: string | null;
+    score: number;
+  };
+}> => {
   const { isHost } = await ensureMembership(roomId, userId);
   if (!isHost) throw new HttpError(403, "Only host can resolve");
 
   const state = await ensureGameState(roomId);
   if (state.phase !== "FINAL_VOTE") {
-    throw new HttpError(409, "Final vote not started");
+    throw new HttpError(409, "Final phase not reached");
   }
 
-  const votes = await listLeaderVotes(supabaseAdmin, roomId);
-  if (votes.length === 0) throw new HttpError(409, "No votes to resolve");
+  /** 1️⃣ 마지막 챕터 가져오기 */
+  const finalChapter = await fetchChapterByOrder(
+    supabaseAdmin,
+    roomId,
+    LAST_CHAPTER_ORDER
+  );
+  if (!finalChapter) throw new HttpError(404, "Final chapter not found");
 
-  const totals = new Map<string, number>();
-  for (const vote of votes) {
-    totals.set(vote.target_user_id, (totals.get(vote.target_user_id) ?? 0) + vote.weight);
-  }
+  const votes = await listChapterVotes(
+    supabaseAdmin,
+    roomId,
+    finalChapter.id
+  );
+  if (votes.length === 0) throw new HttpError(409, "No final votes");
 
-  let winnerUserId = "";
-  let maxWeight = -1;
-  let tied = false;
+  const { majority } = computeMajority(votes);
 
-  for (const [userIdKey, total] of totals.entries()) {
-    if (total > maxWeight) {
-      winnerUserId = userIdKey;
-      maxWeight = total;
-      tied = false;
-    } else if (total === maxWeight) {
-      tied = true;
-    }
-  }
+  /** 2️⃣ 지도자 결정 */
+  const leader =
+    majority === "A" ? "SEONGYEOL" : "JAEMYEON";
 
-  if (tied) throw new HttpError(409, "Leader vote is tied");
+  /** 3️⃣ MVP 계산 */
+  const players = await listPlayers(supabaseAdmin, roomId);
+  const sorted = [...players].sort((a, b) => b.score - a.score);
+  const top = sorted[0];
 
+  if (!top) throw new HttpError(409, "No players");
+
+  /** 4️⃣ 게임 종료 처리 */
   await applyFinalResolution(supabaseAdmin, roomId);
 
-  return { winnerUserId, total: maxWeight };
+  return {
+    leader,
+    mvp: {
+      userId: top.user_id,
+      nickname: top.nickname,
+      score: top.score,
+    },
+  };
 };
+
 
 /**
  * ====== 결과 조회/리더보드/투표조회는 read client 유지 ======
