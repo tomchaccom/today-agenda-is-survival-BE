@@ -132,7 +132,26 @@ router.get("/google/callback", async (req, res) => {
     });
 
     // ✅ 프론트로 이동
-    return res.redirect(`${FRONT_URL}/play`);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Redirecting...</title>
+        <meta http-equiv="Cache-Control" content="no-store" />
+      </head>
+      <body>
+        <script>
+          // Chrome OAuth + SameSite=None 쿠키 commit 타이밍 보장
+          setTimeout(function () {
+            window.location.replace("${FRONT_URL}/play");
+          }, 50);
+        </script>
+      </body>
+    </html>
+    `);
+    
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: "Internal Server Error" });
