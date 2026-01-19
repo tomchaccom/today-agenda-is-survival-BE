@@ -24,12 +24,89 @@ import {
  *     GameState:
  *       type: object
  *       properties:
- *         status:
+ *         room_id:
  *           type: string
- *           example: playing
- *         currentChapter:
+ *           example: "room-uuid"
+ *         phase:
+ *           type: string
+ *           enum: [IN_PROGRESS, FINAL_VOTE, FINISHED]
+ *           example: IN_PROGRESS
+ *         current_chapter_order:
+ *           type: integer
+ *           nullable: true
+ *           example: 1
+ *         started_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *         finished_at:
+ *           type: string
+ *           format: date-time
+ *           nullable: true
+ *
+ *     Chapter:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           example: "chapter-uuid"
+ *         room_id:
+ *           type: string
+ *           example: "room-uuid"
+ *         order:
  *           type: integer
  *           example: 1
+ *         title:
+ *           type: string
+ *           example: "Expedition Selection"
+ *         description:
+ *           type: string
+ *           example: "재원을 다시 원정대로 보내야 할까?"
+ *         option_a_label:
+ *           type: string
+ *           example: "능력 기반 재파견 (Seongyeol)"
+ *         option_b_label:
+ *           type: string
+ *           example: "추첨/순환 시스템 (Jaemyeon)"
+ *
+ *     ChapterVote:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           example: "vote-uuid"
+ *         room_id:
+ *           type: string
+ *           example: "room-uuid"
+ *         chapter_id:
+ *           type: string
+ *           example: "chapter-uuid"
+ *         user_id:
+ *           type: string
+ *           example: "user-uuid"
+ *         choice:
+ *           type: string
+ *           enum: [A, B]
+ *           example: A
+ *
+ *     LeaderVote:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *           example: "leader-vote-uuid"
+ *         room_id:
+ *           type: string
+ *           example: "room-uuid"
+ *         voter_user_id:
+ *           type: string
+ *           example: "user-uuid"
+ *         target_user_id:
+ *           type: string
+ *           example: "user-uuid"
+ *         weight:
+ *           type: number
+ *           example: 1.2
  *
  *     VoteRequest:
  *       type: object
@@ -95,6 +172,10 @@ function requireParam(value: unknown, name: string): string {
  *               properties:
  *                 state:
  *                   $ref: '#/components/schemas/GameState'
+ *       403:
+ *         description: 호스트만 시작 가능
+ *       409:
+ *         description: 상태 충돌(이미 시작/인원 조건 미달)
  */
 
 router.post("/:roomId/game/start", requireAuth, async (req: Request, res: Response) => {
@@ -129,6 +210,17 @@ router.post("/:roomId/game/start", requireAuth, async (req: Request, res: Respon
  *     responses:
  *       200:
  *         description: 현재 게임 상태
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 state:
+ *                   $ref: '#/components/schemas/GameState'
+ *       404:
+ *         description: 방 없음
+ *       403:
+ *         description: 접근 권한 없음
  */
 
 router.get("/:roomId/game/state", requireAuth, async (req, res) => {
@@ -163,6 +255,15 @@ router.get("/:roomId/game/state", requireAuth, async (req, res) => {
  *     responses:
  *       200:
  *         description: 챕터 리스트
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 chapters:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Chapter'
  */
 
 router.get("/:roomId/chapters", requireAuth, async (req, res) => {
@@ -197,6 +298,15 @@ router.get("/:roomId/chapters", requireAuth, async (req, res) => {
  *     responses:
  *       200:
  *         description: 현재 진행 중인 챕터
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 chapter:
+ *                   $ref: '#/components/schemas/Chapter'
+ *       409:
+ *         description: 진행 중인 챕터 없음
  */
 
 router.get("/:roomId/chapters/current", requireAuth, async (req, res) => {
@@ -242,6 +352,20 @@ router.get("/:roomId/chapters/current", requireAuth, async (req, res) => {
  *     responses:
  *       201:
  *         description: 투표 완료
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 state:
+ *                   type: string
+ *                   enum: [IN_PROGRESS, FINAL_VOTE, FINISHED]
+ *                 vote:
+ *                   $ref: '#/components/schemas/ChapterVote'
+ *       403:
+ *         description: 플레이어 아님
+ *       409:
+ *         description: 상태 충돌(진행 중 아님/중복 투표/비활성 챕터)
  */
 
 router.post(
@@ -279,6 +403,20 @@ router.post(
  *   post:
  *     summary: 챕터 결과 확정
  *     tags: [Chapter]
+ *     responses:
+ *       200:
+ *         description: 챕터 결과 확정
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 state:
+ *                   $ref: '#/components/schemas/GameState'
+ *       403:
+ *         description: 호스트만 확정 가능
+ *       409:
+ *         description: 상태 충돌(진행 중 아님/투표 없음)
  */
 
 router.post(
@@ -318,6 +456,15 @@ router.post(
  *     responses:
  *       201:
  *         description: 리더 투표 완료
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 vote:
+ *                   $ref: '#/components/schemas/LeaderVote'
+ *       409:
+ *         description: 상태 충돌(최종 투표 아님/중복 투표)
  */
 
 router.post("/:roomId/final/leader-vote", requireAuth, async (req, res) => {
@@ -346,6 +493,24 @@ router.post("/:roomId/final/leader-vote", requireAuth, async (req, res) => {
  *   post:
  *     summary: 최종 결과 확정
  *     tags: [Final]
+ *     responses:
+ *       200:
+ *         description: 최종 결과 확정
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 winnerUserId:
+ *                   type: string
+ *                   example: "user-uuid"
+ *                 total:
+ *                   type: number
+ *                   example: 3.2
+ *       403:
+ *         description: 호스트만 확정 가능
+ *       409:
+ *         description: 상태 충돌(최종 투표 아님/투표 없음)
  */
 
 router.post("/:roomId/final/resolve", requireAuth, async (req, res) => {
@@ -364,6 +529,23 @@ router.post("/:roomId/final/resolve", requireAuth, async (req, res) => {
  *   get:
  *     summary: 최종 결과 조회
  *     tags: [Final]
+ *     responses:
+ *       200:
+ *         description: 최종 결과
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 winnerUserId:
+ *                   type: string
+ *                   example: "user-uuid"
+ *                 totals:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: number
+ *       409:
+ *         description: 게임 미종료
  */
 
 router.get("/:roomId/final/result", requireAuth, async (req, res) => {
@@ -389,6 +571,30 @@ router.get("/:roomId/final/result", requireAuth, async (req, res) => {
  *   get:
  *     summary: 리더보드 조회
  *     tags: [Leaderboard]
+ *     responses:
+ *       200:
+ *         description: 리더보드
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 players:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       room_id:
+ *                         type: string
+ *                       user_id:
+ *                         type: string
+ *                       nickname:
+ *                         type: string
+ *                         nullable: true
+ *                       influence_score:
+ *                         type: number
  */
 
 router.get("/:roomId/leaderboard", requireAuth, async (req, res) => {
@@ -414,6 +620,18 @@ router.get("/:roomId/leaderboard", requireAuth, async (req, res) => {
  *   get:
  *     summary: 챕터 투표 목록 조회
  *     tags: [Vote]
+ *     responses:
+ *       200:
+ *         description: 챕터 투표 목록
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 votes:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ChapterVote'
  */
 
 router.get(

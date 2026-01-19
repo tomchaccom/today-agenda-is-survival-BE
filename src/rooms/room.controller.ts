@@ -20,7 +20,7 @@ import {
  *         id:
  *           type: string
  *           example: "room-uuid"
- *         hostUserId:
+ *         host_user_id:
  *           type: string
  *           example: "user-uuid"
  *         capacity:
@@ -28,27 +28,41 @@ import {
  *           example: 3
  *         status:
  *           type: string
- *           example: waiting
- *         createdAt:
+ *           enum: [WAITING, PLAYING, FINISHED]
+ *           example: WAITING
+ *         created_at:
  *           type: string
  *           format: date-time
  *
  *     Player:
  *       type: object
  *       properties:
- *         userId:
+ *         id:
+ *           type: string
+ *           example: "player-uuid"
+ *         room_id:
+ *           type: string
+ *           example: "room-uuid"
+ *         user_id:
  *           type: string
  *           example: "user-uuid"
  *         nickname:
  *           type: string
  *           example: "방장"
+ *         influence_score:
+ *           type: number
+ *           example: 1
+ *         joined_at:
+ *           type: string
+ *           format: date-time
  *
  *     CreateRoomRequest:
  *       type: object
- *       required: [nickname]
+ *       required: [capacity, nickname]
  *       properties:
  *         capacity:
  *           type: integer
+ *           enum: [3, 5, 7, 9]
  *           example: 3
  *         nickname:
  *           type: string
@@ -110,6 +124,8 @@ function requireParam(value: unknown, name: string): string {
  *               properties:
  *                 room:
  *                   $ref: '#/components/schemas/Room'
+ *       422:
+ *         description: 요청 값 오류
  *       401:
  *         description: 인증 실패
  */
@@ -168,6 +184,10 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
  *               properties:
  *                 player:
  *                   $ref: '#/components/schemas/Player'
+ *       409:
+ *         description: 참여 불가(대기 상태 아님/정원 초과/중복 참여)
+ *       422:
+ *         description: 요청 값 오류
  */
 
 router.post("/:roomId/join", requireAuth, async (req, res) => {
@@ -264,6 +284,10 @@ router.get("/", requireAuth, (req: Request, res: Response) => {
  *               properties:
  *                 room:
  *                   $ref: '#/components/schemas/Room'
+ *       403:
+ *         description: 접근 권한 없음
+ *       404:
+ *         description: 방 없음
  */
 
 router.get("/:roomId", requireAuth, async (req, res) => {
@@ -307,6 +331,10 @@ router.get("/:roomId", requireAuth, async (req, res) => {
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Player'
+ *       403:
+ *         description: 접근 권한 없음
+ *       404:
+ *         description: 방 없음
  */
 
 router.get("/:roomId/players", requireAuth, async (req, res) => {
