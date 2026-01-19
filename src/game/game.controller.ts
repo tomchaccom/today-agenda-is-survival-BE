@@ -449,4 +449,13 @@ router.get(
   }
 );
 
+router.get("/me", requireAuth, (req, res) => {
+  assertAuthenticated(req);
+  res.json({
+    userId: req.user.userId,
+    email: req.user.email,
+  });
+});
+
+
 export default router;
