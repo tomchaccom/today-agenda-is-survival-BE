@@ -10,13 +10,17 @@ import { supabaseAdmin } from "../supabase/supabase.client";
 const router = Router();
 const isProd = process.env.NODE_ENV === "production";
 
+// ✅ 프론트 URL 환경 분기
+const FRONT_URL = isProd
+  ? "https://qltkek.shop"
+  : "http://localhost:3000";
+
 /**
  * Google OAuth 시작
  */
 router.get("/google", (req, res) => {
-  console.log("[AUTH][GOOGLE] STEP 0: redirect to Google OAuth");
-
   const authUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+
   authUrl.searchParams.append("client_id", process.env.GOOGLE_CLIENT_ID!);
   authUrl.searchParams.append("redirect_uri", process.env.GOOGLE_REDIRECT_URI!);
   authUrl.searchParams.append("response_type", "code");
@@ -30,22 +34,13 @@ router.get("/google", (req, res) => {
 /**
  * Google OAuth 콜백
  */
-/**
- * Google OAuth 콜백
- */
 router.get("/google/callback", async (req, res) => {
   try {
-    console.log("[AUTH][CALLBACK] STEP 1: callback entered");
-
     const code = req.query.code;
-    console.log("[AUTH][CALLBACK] STEP 2: raw code =", code);
-
     if (typeof code !== "string") {
-      console.error("[AUTH][CALLBACK] INVALID CODE");
       return res.status(400).json({ error: "Invalid authorization code" });
     }
 
-    console.log("[AUTH][CALLBACK] STEP 3: exchanging Google code");
     const googleUser = await exchangeGoogleCode(code);
 
     const email = googleUser.email;
@@ -56,25 +51,18 @@ router.get("/google/callback", async (req, res) => {
       return res.status(400).json({ error: "Invalid Google user" });
     }
 
-    console.log("[AUTH][CALLBACK] STEP 4: user lookup start");
-
-    const { data: user, error: selectError } = await supabaseAdmin
+    // 🔍 사용자 조회
+    const { data: user } = await supabaseAdmin
       .from("users")
       .select("id, email")
       .eq("provider", "google")
       .eq("provider_user_id", providerUserId)
       .maybeSingle();
 
-    if (selectError) {
-      return res.status(500).json({ error: "User lookup failed" });
-    }
-
     let userId: string;
 
     if (!user) {
-      console.log("[AUTH][CALLBACK] STEP 5: new user, creating");
-
-      const { data: newUser, error: insertError } = await supabaseAdmin
+      const { data: newUser, error } = await supabaseAdmin
         .from("users")
         .insert({
           email,
@@ -86,7 +74,7 @@ router.get("/google/callback", async (req, res) => {
         .select("id")
         .single();
 
-      if (insertError) {
+      if (error || !newUser) {
         return res.status(500).json({ error: "User creation failed" });
       }
 
@@ -95,64 +83,52 @@ router.get("/google/callback", async (req, res) => {
       userId = user.id;
     }
 
-    console.log("[AUTH][CALLBACK] STEP 6: issuing JWT");
-
-    const authUser: AuthUser = {
-      id: userId,
-      email: email ?? "",
-    };
-
+    // 🔐 JWT 발급
+    const authUser: AuthUser = { id: userId, email };
     const { accessToken, refreshToken } = await issueTokens(authUser);
 
     /* ===============================
-       ✅ STEP 7: 토큰을 쿠키로 설정
+       ✅ 쿠키 설정 (환경 분기 핵심)
        =============================== */
 
-    // 🔐 refresh token (HttpOnly)
+    // refresh token (HttpOnly)
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
-      sameSite: "lax",
       secure: isProd,
+      sameSite: isProd ? "none" : "lax",
       path: "/",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    // 🔓 access token (프론트에서 사용)
+    // access token (프론트에서 읽음)
     res.cookie("access_token", accessToken, {
-      httpOnly: false,        // 프론트 JS에서 읽어야 하면 false
-      sameSite: "lax",
+      httpOnly: false,
       secure: isProd,
+      sameSite: isProd ? "none" : "lax",
       path: "/",
-      maxAge: 15 * 60 * 1000, // 15분
+      maxAge: 15 * 60 * 1000,
     });
 
-    /* ===============================
-       ✅ STEP 8: 프론트로 리다이렉트
-       =============================== */
-
-    console.log("[AUTH][CALLBACK] STEP 8: redirect to /play");
-
-    return res.redirect("http://localhost:3000/play");
-
+    // ✅ 프론트로 이동
+    return res.redirect(`${FRONT_URL}/play`);
   } catch (error) {
-    console.error("[AUTH][CALLBACK] UNHANDLED ERROR", error);
-
-    if (error instanceof HttpError) {
-      return res.status(error.status).json({
-        error: error.message || "Request failed",
-      });
-    }
-
+    console.error(error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
+/**
+ * 🧪 개발용 로그인 (POST 유지 권장)
+ */
 router.post("/dev/login", async (req, res) => {
-  if (process.env.NODE_ENV === "production") {
+  if (isProd) {
     return res.status(404).end();
   }
 
   const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "email is required" });
+  }
 
   const { data: user } = await supabaseAdmin
     .from("users")
@@ -169,6 +145,7 @@ router.post("/dev/login", async (req, res) => {
     email: user.email,
   });
 
+  // ❗ dev/login은 JSON 반환만 (쿠키 X)
   return res.json({
     access_token: accessToken,
     refresh_token: refreshToken,
