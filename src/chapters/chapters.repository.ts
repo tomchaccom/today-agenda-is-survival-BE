@@ -100,21 +100,21 @@ export const fetchVotes = async (
  * chapter 전용 (+0.1)
  */
 export const incrementPlayerScores = async (
-  client: SupabaseClient,
-  roomId: string,
-  userIds: string[],
-  amount: number
-) => {
-  if (userIds.length === 0) return;
-
-  const { error } = await client.rpc("increment_player_scores", {
-    p_room_id: roomId,
-    p_user_ids: userIds,
-    p_amount: amount,
-  });
-
-  if (error) throw error;
-};
+    client: SupabaseClient,
+    roomId: string,
+    userIds: string[],
+    amount: number
+  ) => {
+    if (userIds.length === 0) return;
+  
+    const { error } = await client.rpc("increment_player_scores", {
+      p_room_id: roomId,
+      p_user_ids: userIds,
+      p_amount: amount,
+    });
+  
+    if (error) throw error;
+  };
 
 /**
  * rooms.current_qnum + 1
