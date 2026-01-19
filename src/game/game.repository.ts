@@ -36,13 +36,15 @@ export type ChapterResolution = {
   resolved_at: string;
 };
 
-export type LeaderVote = {
+export interface LeaderVote {
   id: string;
   room_id: string;
   voter_user_id: string;
-  target_user_id: string;
+  target_user_id: "A" | "B"; // 🔥 의미 변경
   weight: number;
-};
+  created_at: string;
+}
+
 
 export type Player = {
   room_id: string;
@@ -297,7 +299,7 @@ export const insertLeaderVote = async (
   client: SupabaseClient,
   roomId: string,
   voterUserId: string,
-  targetUserId: string,
+  choice: "A" | "B",
   weight: number
 ): Promise<LeaderVote> => {
   const { data, error } = await client
@@ -305,15 +307,17 @@ export const insertLeaderVote = async (
     .insert({
       room_id: roomId,
       voter_user_id: voterUserId,
-      target_user_id: targetUserId,
+      target_user_id: choice, // 🔥 여기!
       weight,
     })
-    .select("id,room_id,voter_user_id,target_user_id,weight")
+    .select("id, room_id, voter_user_id, target_user_id, weight, created_at")
     .single();
 
   if (error) throw error;
   return data;
 };
+
+
 
 export const countLeaderVotes = async (
   client: SupabaseClient,
@@ -334,12 +338,13 @@ export const listLeaderVotes = async (
 ): Promise<LeaderVote[]> => {
   const { data, error } = await client
     .from("leader_votes")
-    .select("id,room_id,voter_user_id,target_user_id,weight")
+    .select("id,room_id,voter_user_id,target_user_id,weight,created_at")
     .eq("room_id", roomId);
 
   if (error) throw error;
   return data ?? [];
 };
+
 
 export const applyChapterResolution = async (
   client: SupabaseClient,
