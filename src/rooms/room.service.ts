@@ -33,7 +33,7 @@ import {
 } from "../game/game.repository";
 import {
   deleteRoomResultsByRoom,
-  deleteVotesByRoom,
+  deleteChapterVotesByRoom,
 } from "../chapters/chapters.repository";
 
 /* ================================
@@ -277,7 +277,7 @@ export const leaveRoomAsHost = async (
   }
 
   await deleteRoomPlayers(supabaseAdmin, roomId);
-  await deleteVotesByRoom(supabaseAdmin, roomId);
+  await deleteChapterVotesByRoom(supabaseAdmin, roomId);
   await deleteRoomResultsByRoom(supabaseAdmin, roomId);
   await deleteChapterVotesByRoom(supabaseAdmin, roomId);
   await deleteLeaderVotesByRoom(supabaseAdmin, roomId);

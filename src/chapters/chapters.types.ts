@@ -1,39 +1,43 @@
 // src/chapters/chapters.types.ts
+export type VoteChoice = "A" | "B";
 
+export type ChapterRow = {
+  id: string;
+  room_id: string;
+  order: number;
+  title: string;
+  description: string;
+  option_a_label: string;
+  option_b_label: string;
+};
 
+export type ChapterVoteRow = {
+  id: string;
+  room_id: string;
+  chapter_id: string;
+  user_id: string;
+  choice: VoteChoice;
+};
 
-export type QuestionRow = {
-    id: number;
-    chapter: number;
-    qnum: number;
-    is_final: boolean;
-    content: string;
-  };
-  
-  export type VoteChoice = "A" | "B";
-  
-  export type ChapterResolveResult = {
-    roomId: string;
-    chapter: number;
-    qnum: number;
-    majority: VoteChoice;
-    isFinal: boolean;
-  };
-  
+export type LeaderVoteRow = {
+  id: string;
+  room_id: string;
+  voter_user_id: string;
+  choice: VoteChoice;
+  weight: number;
+  created_at: string;
+};
 
-  export type VoteDecision = "A" | "B";
-  
-  export type RoomRow = {
-    id: string;
-    status: string;
-    capacity: number;
-    current_qnum: number;
-  };
-  
-  export type PlayerRow = {
-    room_id: string;
-    user_id: string;
-    nickname: string | null;
-    score: number;
-    joined_at: string;
-  };
+export type RoomRow = {
+  id: string;
+  status: string;
+  current_qnum: number;
+};
+
+export type PlayerRow = {
+  room_id: string;
+  user_id: string;
+  nickname: string | null;
+  score: number;
+  joined_at: string;
+};

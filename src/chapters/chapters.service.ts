@@ -2,22 +2,19 @@
 import { supabaseAdmin } from "../supabase/supabase.client";
 import { HttpError } from "../common/http-error";
 import {
-  fetchCurrentQuestion,
-  countVotesByDecision,
-  fetchVotes,
+  advanceRoomQuestion,
+  countVotesByChoice,
+  fetchChapterById,
+  fetchChapterByOrder,
+  fetchChapterVotes,
+  fetchCurrentChapter,
   incrementPlayerScores,
+  insertChapterVote,
   insertRoomResult,
+  listLeaderVotes,
   resolveRoom,
-  insertVote,
 } from "./chapters.repository";
-import {
-    QuestionRow,
-    RoomRow,
-    PlayerRow,
-    VoteDecision,
-  } from "./chapters.types";
-  
-
+import { PlayerRow, VoteChoice } from "./chapters.types";
 
 const SCORE_REWARD = 0.1;
 
@@ -37,66 +34,48 @@ const listPlayers = async (roomId: string): Promise<PlayerRow[]> => {
 /**
  * rooms 조회 (status/current_qnum 확인용)
  */
-const fetchRoom = async (roomId: string): Promise<RoomRow> => {
+const fetchRoom = async (
+  roomId: string
+): Promise<{ id: string; status: string; current_qnum: number }> => {
   const { data, error } = await supabaseAdmin
     .from("rooms")
-    .select("id, status, capacity, current_qnum")
+    .select("id, status, current_qnum")
     .eq("id", roomId)
     .single();
 
   if (error) throw error;
   if (!data) throw new HttpError(404, "Room not found");
-  return data as RoomRow;
+  return data;
 };
 
-/**
- * rooms.current_qnum 증가 (RPC 없이 안전하게)
- */
-const advanceRoomQnum = async (roomId: string): Promise<number> => {
-  // 현재 qnum 읽고 +1
-  const room = await fetchRoom(roomId);
-  const next = (room.current_qnum ?? 1) + 1;
-
-  const { error } = await supabaseAdmin
-    .from("rooms")
-    .update({ current_qnum: next })
-    .eq("id", roomId);
-
-  if (error) throw error;
-  return next;
-};
-
-/**
- * final 계산: A 선택자들의 score 평균 vs B 선택자들의 score 평균
- */
-const computeFinalWinnerByAverage = (
-  votes: { user_id: string; decision: VoteDecision }[],
-  players: PlayerRow[]
-) => {
-  const scoreMap = new Map(players.map((p) => [p.user_id, p.score]));
-
-  const aScores: number[] = [];
-  const bScores: number[] = [];
-
-  for (const v of votes) {
-    const s = scoreMap.get(v.user_id);
-    if (typeof s !== "number") continue;
-
-    if (v.decision === "A") aScores.push(s);
-    if (v.decision === "B") bScores.push(s);
+const resolveFinalByLeaderVotes = async (roomId: string) => {
+  const votes = await listLeaderVotes(supabaseAdmin, roomId);
+  if (votes.length === 0) {
+    throw new HttpError(409, "No leader votes");
   }
 
-  const avg = (arr: number[]) =>
-    arr.length === 0 ? 0 : arr.reduce((sum, x) => sum + x, 0) / arr.length;
+  const totals = { A: 0, B: 0 };
+  for (const vote of votes) {
+    totals[vote.choice] += vote.weight;
+  }
 
-  const aAvg = avg(aScores);
-  const bAvg = avg(bScores);
+  if (totals.A === totals.B) {
+    throw new HttpError(409, "Leader vote is tied");
+  }
 
-  let winner: VoteDecision | "TIE" = "TIE";
-  if (aAvg > bAvg) winner = "A";
-  else if (bAvg > aAvg) winner = "B";
+  const winner: VoteChoice = totals.A > totals.B ? "A" : "B";
 
-  return { winner, aAvg, bAvg, aCount: aScores.length, bCount: bScores.length };
+  await insertRoomResult(supabaseAdmin, roomId, winner, totals.A, totals.B);
+  await resolveRoom(supabaseAdmin, roomId);
+
+  return {
+    ok: true,
+    type: "final",
+    roomId,
+    totals,
+    winner,
+    room_status: "resolved",
+  };
 };
 
 /**
@@ -113,178 +92,136 @@ export const resolveChapter = async (roomId: string) => {
     throw new HttpError(409, "Room is not active");
   }
 
-  // 1) 현재 질문 조회 (rooms.current_qnum 기준)
-  const question: QuestionRow = await fetchCurrentQuestion(
+  const currentChapter = await fetchChapterByOrder(
     supabaseAdmin,
-    roomId
+    roomId,
+    room.current_qnum
   );
-  
-  console.log("[CHAPTER_RESOLVE] current question =", question);
 
-  // 2) 플레이어 목록
+  if (!currentChapter) {
+    return resolveFinalByLeaderVotes(roomId);
+  }
+
+  console.log("[CHAPTER_RESOLVE] current chapter =", currentChapter);
+
+  // 1) 플레이어 목록
   const players = await listPlayers(roomId);
   if (players.length === 0) {
     throw new HttpError(409, "No players in room");
   }
 
-  // 3) 투표 목록/집계
-  const votes = await fetchVotes(supabaseAdmin, roomId, question.id);
-  const { a, b } = await countVotesByDecision(
+  // 2) 투표 목록/집계
+  const votes = await fetchChapterVotes(
     supabaseAdmin,
     roomId,
-    question.id
+    currentChapter.id
+  );
+  const { a, b } = await countVotesByChoice(
+    supabaseAdmin,
+    roomId,
+    currentChapter.id
   );
 
   console.log("[CHAPTER_RESOLVE] votes count =", { a, b, total: votes.length });
 
-  // 4) "모든 참가자 투표 완료" 강제 (원하면 이 체크 끌 수 있음)
+  // 3) 모든 참가자 투표 완료 확인
   if (votes.length < players.length) {
     throw new HttpError(409, "Not all players have voted yet");
   }
 
-  // 5) 분기: FINAL vs 일반
-  if (!question.is_final) {
-    // ---------- 일반 챕터 ----------
-    let winner: VoteDecision | "TIE" = "TIE";
-    if (a > b) winner = "A";
-    else if (b > a) winner = "B";
+  let winner: VoteChoice | "TIE" = "TIE";
+  if (a > b) winner = "A";
+  else if (b > a) winner = "B";
 
-    if (winner === "TIE") {
-      throw new HttpError(409, "Tie vote - cannot resolve");
-    }
-
-    // winner 찍은 유저들에게 +0.1
-    const winnerUserIds = votes
-      .filter((v) => v.decision === winner)
-      .map((v) => v.user_id);
-
-    console.log("[CHAPTER_RESOLVE] winner =", winner, "reward users =", {
-      count: winnerUserIds.length,
-    });
-
-    await incrementPlayerScores(
-      supabaseAdmin,
-      roomId,
-      winnerUserIds,
-      SCORE_REWARD
-    );
-
-    // 다음 qnum으로 진행
-    const nextQnum = await advanceRoomQnum(roomId);
-
-    console.log("[CHAPTER_RESOLVE] resolved normal chapter", {
-      winner,
-      nextQnum,
-    });
-
-    return {
-      ok: true,
-      type: "chapter",
-      roomId,
-      question: {
-        id: question.id,
-        chapter: question.chapter,
-        qnum: question.qnum,
-        is_final: question.is_final,
-        content: question.content,
-      },
-      votes: { a, b },
-      winner,
-      reward: SCORE_REWARD,
-      next_qnum: nextQnum,
-    };
-  } else {
-    // ---------- FINAL ----------
-    const final = computeFinalWinnerByAverage(
-      votes as any,
-      players
-    );
-
-    console.log("[CHAPTER_RESOLVE] final avg =", final);
-
-    if (final.winner === "TIE") {
-      throw new HttpError(409, "Final tie - cannot resolve");
-    }
-
-    // room_results 저장
-    await insertRoomResult(
-      supabaseAdmin,
-      roomId,
-      final.winner,
-      final.aAvg,
-      final.bAvg
-    );
-
-    // 방 종료
-    await resolveRoom(supabaseAdmin, roomId);
-
-    console.log("[CHAPTER_RESOLVE] resolved FINAL", {
-      winner: final.winner,
-      aAvg: final.aAvg,
-      bAvg: final.bAvg,
-    });
-
-    return {
-      ok: true,
-      type: "final",
-      roomId,
-      question: {
-        id: question.id,
-        chapter: question.chapter,
-        qnum: question.qnum,
-        is_final: question.is_final,
-        content: question.content,
-      },
-      votes: {
-        a_count: final.aCount,
-        b_count: final.bCount,
-      },
-      average_score: {
-        a: final.aAvg,
-        b: final.bAvg,
-      },
-      winner: final.winner,
-      room_status: "resolved",
-    };
+  if (winner === "TIE") {
+    throw new HttpError(409, "Tie vote - cannot resolve");
   }
+
+  const winnerUserIds = votes
+    .filter((v) => v.choice === winner)
+    .map((v) => v.user_id);
+
+  console.log("[CHAPTER_RESOLVE] winner =", winner, "reward users =", {
+    count: winnerUserIds.length,
+  });
+
+  await incrementPlayerScores(
+    supabaseAdmin,
+    roomId,
+    winnerUserIds,
+    SCORE_REWARD
+  );
+
+  const nextQnum = await advanceRoomQuestion(supabaseAdmin, roomId);
+  const nextChapter = await fetchChapterByOrder(
+    supabaseAdmin,
+    roomId,
+    nextQnum
+  );
+
+  console.log("[CHAPTER_RESOLVE] resolved chapter", {
+    winner,
+    nextQnum,
+  });
+
+  return {
+    ok: true,
+    type: "chapter",
+    roomId,
+    chapter: currentChapter,
+    votes: { a, b },
+    winner,
+    reward: SCORE_REWARD,
+    next_qnum: nextQnum,
+    next_phase: nextChapter ? "chapter" : "final",
+  };
 };
-export const getCurrentQuestion = async (roomId: string) => {
-    const question = await fetchCurrentQuestion(supabaseAdmin, roomId);
-  
-    return {
-      id: question.id,
-      chapter: question.chapter,
-      qnum: question.qnum,
-      is_final: question.is_final,
-      content: question.content,
-    };
-  };
-  
-  export const voteForQuestion = async (
-    roomId: string,
-    questionId: number,
-    userId: string,
-    decision: "A" | "B"
-  ) => {
-    if (decision !== "A" && decision !== "B") {
-      throw new HttpError(400, "Invalid decision");
+
+export const getCurrentChapter = async (roomId: string) => {
+  const chapter = await fetchCurrentChapter(supabaseAdmin, roomId);
+
+  return chapter;
+};
+
+export const voteForChapter = async (
+  roomId: string,
+  chapterId: string,
+  userId: string,
+  choice: VoteChoice
+) => {
+  if (choice !== "A" && choice !== "B") {
+    throw new HttpError(400, "Invalid choice");
+  }
+
+  const room = await fetchRoom(roomId);
+  const chapter = await fetchChapterById(
+    supabaseAdmin,
+    roomId,
+    chapterId
+  );
+
+  if (!chapter) {
+    throw new HttpError(404, "Chapter not found");
+  }
+
+  if (chapter.order !== room.current_qnum) {
+    throw new HttpError(409, "Chapter is not active");
+  }
+
+  try {
+    await insertChapterVote(
+      supabaseAdmin,
+      roomId,
+      chapterId,
+      userId,
+      choice
+    );
+  } catch (err: any) {
+    if (err?.code === "23505") {
+      throw new HttpError(409, "Already voted");
     }
-  
-    try {
-      await insertVote(
-        supabaseAdmin,
-        roomId,
-        questionId,
-        userId,
-        decision
-      );
-    } catch (err: any) {
-      if (err.code === "23505") {
-        throw new HttpError(409, "Already voted");
-      }
-      throw err;
-    }
-  
-    return { ok: true };
-  };
-  
+    throw err;
+  }
+
+  return { ok: true };
+};
