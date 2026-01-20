@@ -302,6 +302,9 @@ router.get("/", requireAuth, async (req: Request, res: Response) => {
 
 router.get("/:roomId", requireAuth, async (req, res) => {
   try {
+    console.log("[ROOM] cookies =", (req as Request & { cookies?: unknown }).cookies);
+    console.log("[ROOM] user =", req.user);
+    console.log("[ROOM] authToken =", req.authToken);
     assertAuthenticated(req);
     const roomId = requireParam(req.params.roomId, "roomId");
 

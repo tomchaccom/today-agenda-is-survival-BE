@@ -42,6 +42,13 @@ export const requireAuth = (
   res: Response,
   next: NextFunction
 ) => {
+  console.log("[AUTH] cookies =", (req as Request & { cookies?: unknown }).cookies);
+  console.log("[AUTH] auth header =", req.headers.authorization);
+  console.log(
+    "[AUTH] access_token =",
+    (req as Request & { cookies?: { access_token?: string } }).cookies
+      ?.access_token
+  );
   const token = (
     req as Request & { cookies?: { access_token?: string } }
   ).cookies?.access_token;
