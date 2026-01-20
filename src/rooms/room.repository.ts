@@ -212,26 +212,6 @@ export const deletePlayerWithCount = async (
   return count ?? 0;
 };
 
-export const deletePlayerWithCount = async (
-  client: SupabaseClient,
-  roomId: string,
-  userId: string
-): Promise<number> => {
-  const { error, count } = await client
-    .from("room_players")
-    .delete({ count: "exact" })
-    .eq("room_id", roomId)
-    .eq("user_id", userId);
-
-  if (error) {
-    throw new HttpError(
-      500,
-      error.message || "Failed to delete player"
-    );
-  }
-
-  return count ?? 0;
-};
 
 export const deleteRoomPlayers = async (
   client: SupabaseClient,
