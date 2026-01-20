@@ -13,6 +13,7 @@ import {
   Player,
   fetchRoomById,
   fetchPlayer,
+  deletePlayer,
   insertRoom,
   insertPlayer,
   listPlayers,
@@ -148,6 +149,40 @@ export const joinRoom = async (
   }
 };
 
+export const leaveRoom = async (
+  roomId: string,
+  userId: string
+): Promise<void> => {
+  const room = await fetchRoomById(
+    supabaseAdmin,
+    roomId
+  );
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
+
+  if (
+    room.status === ROOM_STATUS.PLAYING ||
+    room.status === ROOM_STATUS.RESOLVED
+  ) {
+    throw new HttpError(403, "Room is not leavable");
+  }
+
+  const player = await fetchPlayer(
+    supabaseAdmin,
+    roomId,
+    userId
+  );
+  if (!player) {
+    throw new HttpError(404, "Player not found");
+  }
+
+  await deletePlayer(
+    supabaseAdmin,
+    roomId,
+    userId
+  );
+};
 
 export const getRoom = async (
   roomId: string,

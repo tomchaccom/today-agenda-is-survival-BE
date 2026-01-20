@@ -7,6 +7,7 @@ import {
   getRoom,
   getRoomPlayers,
   joinRoom,
+  leaveRoom,
   getRooms,
 } from "./room.service";
 
@@ -238,6 +239,20 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
     res.status(status).json({
       error: (error as Error)?.message ?? "Internal Server Error",
     });
+  }
+});
+
+router.delete("/:roomId/players/me", requireAuth, async (req, res) => {
+  try {
+    assertAuthenticated(req);
+    const roomId = requireParam(req.params.roomId, "roomId");
+
+    await leaveRoom(roomId, req.user.userId);
+
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
   }
 });
 
