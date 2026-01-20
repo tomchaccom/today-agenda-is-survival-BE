@@ -3,6 +3,12 @@ import { Router, Request, Response } from "express";
 import { requireAuth } from "../auth/jwt.middleware";
 import { HttpError } from "../common/http-error";
 import {
+  emitRoomDeleted,
+  emitRoomListUpdated,
+  emitRoomPlayersUpdated,
+  getSocketServer,
+} from "../common/socket-events";
+import {
   createRoom,
   getRoom,
   getRoomPlayers,
@@ -151,6 +157,8 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
       capacity,
       nickname
     );
+
+    emitRoomListUpdated(getSocketServer(req));
     
 
     res.status(201).json({ room });
@@ -234,6 +242,8 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
 
     console.log("[JOIN] joinRoom success =", player);
 
+    emitRoomPlayersUpdated(getSocketServer(req), roomId);
+
     res.status(201).json({ player });
   } catch (error) {
     console.error("[JOIN] ERROR =", error);
@@ -252,6 +262,8 @@ router.delete("/:roomId/players/me", requireAuth, async (req, res) => {
 
     await leaveRoom(roomId, req.user.userId);
 
+    emitRoomPlayersUpdated(getSocketServer(req), roomId);
+
     res.status(200).json({ ok: true });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
@@ -265,6 +277,8 @@ router.post("/:roomId/leave", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     await leaveRoomAsMember(roomId, req.user.userId);
+
+    emitRoomPlayersUpdated(getSocketServer(req), roomId);
 
     res.status(200).json({ success: true });
   } catch (error) {
@@ -287,6 +301,11 @@ router.post("/:roomId/leave-as-host", requireAuth, async (req, res) => {
 
     await leaveRoomAsHost(roomId, req.user.userId);
 
+    const io = getSocketServer(req);
+    emitRoomPlayersUpdated(io, roomId);
+    emitRoomDeleted(io, roomId);
+    emitRoomListUpdated(io);
+
     res.status(200).json({ success: true });
   } catch (error) {
     if (error instanceof HttpError) {
@@ -307,6 +326,11 @@ router.delete("/:roomId", requireAuth, async (req, res) => {
     const roomId = requireParam(req.params.roomId, "roomId");
 
     await deleteRoomIfHostAlone(roomId, req.user.userId);
+
+    const io = getSocketServer(req);
+    emitRoomPlayersUpdated(io, roomId);
+    emitRoomDeleted(io, roomId);
+    emitRoomListUpdated(io);
 
     res.status(200).json({ success: true });
   } catch (error) {
