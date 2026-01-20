@@ -14,8 +14,7 @@ import {
   fetchRoomById,
   fetchPlayer,
   deletePlayer,
-  deleteRoomPlayers,
-  deleteRoom,
+  deletePlayerWithCount,
   insertRoom,
   insertPlayer,
   listPlayers,
@@ -24,11 +23,6 @@ import {
 } from "./room.repository";
 
 import { ROOM_STATUS, RoomStatus } from "./room.status";
-import { deleteGameDataForRoom } from "../game/game.repository";
-import {
-  deleteRoomResultsByRoom,
-  deleteVotesByRoom,
-} from "../chapters/chapters.repository";
 
 /* ================================
  * Constants
@@ -204,55 +198,19 @@ export const leaveRoomAsMember = async (
   }
 
   if (room.host_user_id === userId) {
-    throw new HttpError(400, "HOST_CANNOT_LEAVE_DIRECTLY");
+    throw new HttpError(400, "HOST_CANNOT_LEAVE");
   }
 
-  const player = await fetchPlayer(
+  console.log("[LEAVE] roomId =", roomId, "userId =", userId);
+  const deletedCount = await deletePlayerWithCount(
     supabaseAdmin,
     roomId,
     userId
   );
-  if (!player) {
-    throw new HttpError(404, "PLAYER_NOT_FOUND");
-  }
+  console.log("[LEAVE] deleted rows =", deletedCount);
 
-  await deletePlayer(
-    supabaseAdmin,
-    roomId,
-    userId
-  );
-};
-
-export const closeRoom = async (
-  roomId: string,
-  userId: string
-): Promise<void> => {
-  const room = await fetchRoomById(
-    supabaseAdmin,
-    roomId
-  );
-  if (!room) {
-    throw new HttpError(404, "ROOM_NOT_FOUND");
-  }
-
-  if (room.host_user_id !== userId) {
-    throw new HttpError(403, "ONLY_HOST_CAN_CLOSE");
-  }
-
-  try {
-    await deleteVotesByRoom(supabaseAdmin, roomId);
-    await deleteRoomResultsByRoom(supabaseAdmin, roomId);
-    await deleteGameDataForRoom(supabaseAdmin, roomId);
-    await deleteRoomPlayers(supabaseAdmin, roomId);
-    await deleteRoom(supabaseAdmin, roomId);
-  } catch (error: any) {
-    if (error instanceof HttpError) {
-      throw error;
-    }
-    throw new HttpError(
-      500,
-      error?.message || "CLOSE_ROOM_FAILED"
-    );
+  if (deletedCount === 0) {
+    throw new HttpError(409, "USER_NOT_IN_ROOM");
   }
 };
 

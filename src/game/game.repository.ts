@@ -379,24 +379,3 @@ export const applyFinalResolution = async (
 
   if (error) throw error;
 };
-
-export const deleteGameDataForRoom = async (
-  client: SupabaseClient,
-  roomId: string
-): Promise<void> => {
-  const deletes = [
-    "chapter_votes",
-    "chapter_resolutions",
-    "leader_votes",
-    "chapters",
-    "game_state",
-  ] as const;
-
-  for (const table of deletes) {
-    const { error } = await client
-      .from(table)
-      .delete()
-      .eq("room_id", roomId);
-    if (error) throw error;
-  }
-};
