@@ -191,4 +191,28 @@ export const insertVote = async (
   
     if (error) throw error;
   };
+
+export const deleteVotesByRoom = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("votes")
+    .delete()
+    .eq("room_id", roomId);
+
+  if (error) throw error;
+};
+
+export const deleteRoomResultsByRoom = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("room_results")
+    .delete()
+    .eq("room_id", roomId);
+
+  if (error) throw error;
+};
   

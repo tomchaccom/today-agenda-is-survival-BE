@@ -191,6 +191,23 @@ export const deletePlayer = async (
   }
 };
 
+export const deleteRoomPlayers = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("room_players")
+    .delete()
+    .eq("room_id", roomId);
+
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to delete room players"
+    );
+  }
+};
+
 export const countPlayers = async (
   client: SupabaseClient,
   roomId: string
@@ -208,6 +225,23 @@ export const countPlayers = async (
   }
 
   return data.length;
+};
+
+export const deleteRoom = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("rooms")
+    .delete()
+    .eq("id", roomId);
+
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to delete room"
+    );
+  }
 };
 
 
