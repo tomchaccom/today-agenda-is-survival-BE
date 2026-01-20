@@ -25,7 +25,12 @@ import {
 } from "./room.repository";
 
 import { ROOM_STATUS, RoomStatus } from "./room.status";
-import { deleteGameDataForRoom } from "../game/game.repository";
+import {
+  deleteChapterVotesByRoom,
+  deleteLeaderVotesByRoom,
+  deleteGameStateByRoom,
+  deleteChaptersByRoom,
+} from "../game/game.repository";
 import {
   deleteRoomResultsByRoom,
   deleteVotesByRoom,
@@ -250,7 +255,43 @@ export const leaveRoomAsHost = async (
   await deleteRoomPlayers(supabaseAdmin, roomId);
   await deleteVotesByRoom(supabaseAdmin, roomId);
   await deleteRoomResultsByRoom(supabaseAdmin, roomId);
-  await deleteGameDataForRoom(supabaseAdmin, roomId);
+  await deleteChapterVotesByRoom(supabaseAdmin, roomId);
+  await deleteLeaderVotesByRoom(supabaseAdmin, roomId);
+  await deleteGameStateByRoom(supabaseAdmin, roomId);
+  await deleteChaptersByRoom(supabaseAdmin, roomId);
+  await deleteRoom(supabaseAdmin, roomId);
+};
+
+export const deleteRoomIfHostAlone = async (
+  roomId: string,
+  userId: string
+): Promise<void> => {
+  const room = await fetchRoomById(
+    supabaseAdmin,
+    roomId
+  );
+  if (!room) {
+    throw new HttpError(404, "ROOM_NOT_FOUND");
+  }
+
+  if (room.host_user_id !== userId) {
+    throw new HttpError(403, "NOT_ROOM_HOST");
+  }
+
+  const playerCount = await countPlayers(
+    supabaseAdmin,
+    roomId
+  );
+  if (playerCount > 1) {
+    throw new HttpError(409, "ROOM_NOT_EMPTY");
+  }
+
+  await deleteRoomPlayers(supabaseAdmin, roomId);
+  await deleteChapterVotesByRoom(supabaseAdmin, roomId);
+  await deleteLeaderVotesByRoom(supabaseAdmin, roomId);
+  await deleteGameStateByRoom(supabaseAdmin, roomId);
+  await deleteChaptersByRoom(supabaseAdmin, roomId);
+  await deleteRoomResultsByRoom(supabaseAdmin, roomId);
   await deleteRoom(supabaseAdmin, roomId);
 };
 
