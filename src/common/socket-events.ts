@@ -13,9 +13,14 @@ export const getSocketServer = (
   (req.app?.locals?.io as RoomSocketServer | undefined);
 
 export const emitRoomListUpdated = (
-  io: RoomSocketServer | undefined
+  io: RoomSocketServer | undefined,
+  roomId?: string
 ) => {
   if (!io) return;
+  console.log("[SOCKET][EMIT]", {
+    event: "room:list:updated",
+    roomId,
+  });
   io.emit("room:list:updated");
 };
 
@@ -24,6 +29,10 @@ export const emitRoomPlayersUpdated = (
   roomId: string
 ) => {
   if (!io) return;
+  console.log("[SOCKET][EMIT]", {
+    event: "room:players:updated",
+    roomId,
+  });
   io.to(`room:${roomId}`).emit("room:players:updated", { roomId });
 };
 
@@ -32,5 +41,9 @@ export const emitRoomDeleted = (
   roomId: string
 ) => {
   if (!io) return;
+  console.log("[SOCKET][EMIT]", {
+    event: "room:deleted",
+    roomId,
+  });
   io.to(`room:${roomId}`).emit("room:deleted", { roomId });
 };

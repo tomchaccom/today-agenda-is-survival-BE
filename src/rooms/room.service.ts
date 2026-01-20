@@ -108,6 +108,12 @@ export const createRoom = async (
     nickname
   );
 
+  console.log("[ROOM][CREATE]", {
+    roomId: room.id,
+    hostUserId: userId,
+    capacity,
+  });
+
   return room;
 };
 
@@ -137,6 +143,12 @@ export const joinRoom = async (
       userId,
       nickname
     );
+
+    console.log("[PLAYER][JOIN]", {
+      roomId,
+      userId,
+      nickname: nickname ?? null,
+    });
 
     console.log("[JOIN_ROOM] insert success", player);
     return player;
@@ -190,11 +202,17 @@ export const leaveRoom = async (
     throw new HttpError(404, "Player not found");
   }
 
-  await deletePlayer(
+  const deletedCount = await deletePlayerWithCount(
     supabaseAdmin,
     roomId,
     userId
   );
+
+  console.log("[PLAYER][LEAVE]", {
+    roomId,
+    userId,
+    deletedCount,
+  });
 };
 
 export const leaveRoomAsMember = async (
@@ -220,6 +238,12 @@ export const leaveRoomAsMember = async (
     userId
   );
   console.log("[LEAVE] deleted rows =", deletedCount);
+
+  console.log("[PLAYER][LEAVE]", {
+    roomId,
+    userId,
+    deletedCount,
+  });
 
   if (deletedCount === 0) {
     throw new HttpError(409, "USER_NOT_IN_ROOM");
@@ -282,6 +306,11 @@ export const deleteRoomIfHostAlone = async (
     supabaseAdmin,
     roomId
   );
+  console.log("[ROOM][DELETE][CHECK]", {
+    roomId,
+    hostUserId: userId,
+    playerCount,
+  });
   if (playerCount > 1) {
     throw new HttpError(409, "ROOM_NOT_EMPTY");
   }
@@ -293,6 +322,11 @@ export const deleteRoomIfHostAlone = async (
   await deleteChaptersByRoom(supabaseAdmin, roomId);
   await deleteRoomResultsByRoom(supabaseAdmin, roomId);
   await deleteRoom(supabaseAdmin, roomId);
+
+  console.log("[ROOM][DELETE]", {
+    roomId,
+    deletedBy: userId,
+  });
 };
 
 export const getRoom = async (

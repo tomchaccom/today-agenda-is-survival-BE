@@ -158,7 +158,7 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
       nickname
     );
 
-    emitRoomListUpdated(getSocketServer(req));
+    emitRoomListUpdated(getSocketServer(req), room.id);
     
 
     res.status(201).json({ room });
@@ -304,7 +304,7 @@ router.post("/:roomId/leave-as-host", requireAuth, async (req, res) => {
     const io = getSocketServer(req);
     emitRoomPlayersUpdated(io, roomId);
     emitRoomDeleted(io, roomId);
-    emitRoomListUpdated(io);
+    emitRoomListUpdated(io, roomId);
 
     res.status(200).json({ success: true });
   } catch (error) {
@@ -330,7 +330,7 @@ router.delete("/:roomId", requireAuth, async (req, res) => {
     const io = getSocketServer(req);
     emitRoomPlayersUpdated(io, roomId);
     emitRoomDeleted(io, roomId);
-    emitRoomListUpdated(io);
+    emitRoomListUpdated(io, roomId);
 
     res.status(200).json({ success: true });
   } catch (error) {
