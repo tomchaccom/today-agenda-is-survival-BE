@@ -136,6 +136,14 @@ export const insertPlayer = async (
     .single();
 
   if (error) {
+    if (error.code === "23505") {
+      throw new HttpError(409, "Already joined");
+    }
+
+    if (error.code === "23503") {
+      throw new HttpError(400, "Invalid room or user");
+    }
+
     throw new HttpError(
       500,
       error.message || "Failed to insert player"
@@ -190,6 +198,7 @@ export const listRooms = async (
     status?: string;
     minPlayers?: number;
     onlyJoinable?: boolean;
+    excludeResolved?: boolean;
   }
 ) => {
   let query = client
@@ -209,7 +218,11 @@ export const listRooms = async (
   }
 
   if (filters.onlyJoinable) {
-    query = query.eq("status", "WAITING");
+    query = query.eq("status", ROOM_STATUS.WAITING);
+  }
+
+  if (filters.excludeResolved) {
+    query = query.neq("status", ROOM_STATUS.RESOLVED);
   }
 
   if (filters.minPlayers) {

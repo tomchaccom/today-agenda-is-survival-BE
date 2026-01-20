@@ -252,10 +252,20 @@ router.get("/test-auth", requireAuth, (req: Request, res: Response) => {
   }
 });
 
-router.get("/", requireAuth, (req: Request, res: Response) => {
+router.get("/", requireAuth, async (req: Request, res: Response) => {
   try {
     assertAuthenticated(req);
-    res.status(200).json({ ok: true });
+    const { status, minPlayers, onlyJoinable } = req.query;
+
+    console.log("[ROOMS] params =", req.query);
+
+    const rooms = await getRooms(req.user.userId, {
+      status: typeof status === "string" ? status : undefined,
+      minPlayers: minPlayers ? Number(minPlayers) : undefined,
+      onlyJoinable: onlyJoinable === "true",
+    });
+
+    res.status(200).json({ rooms });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
     res.status(status).json({ error: (error as Error).message });
@@ -346,29 +356,11 @@ router.get("/:roomId/players", requireAuth, async (req, res) => {
       roomId,
       req.user.userId
     );
-    
-    
 
     res.status(200).json({ players });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
     res.status(status).json({ error: (error as Error).message });
-  }
-});
-
-router.get("/", async (req, res) => {
-  try {
-    const { status, minPlayers, onlyJoinable } = req.query;
-
-    const rooms = await getRooms(null, {
-      status: typeof status === "string" ? status : undefined,
-      minPlayers: minPlayers ? Number(minPlayers) : undefined,
-      onlyJoinable: onlyJoinable === "true",
-    });
-
-    res.json({ rooms });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch rooms" });
   }
 });
 

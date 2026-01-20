@@ -28,6 +28,20 @@ import { ROOM_STATUS, RoomStatus } from "./room.status";
 
 const ALLOWED_CAPACITIES = new Set([3, 5, 7, 9]);
 
+export interface RoomSummary {
+  id: string;
+  status: RoomStatus;
+  capacity: number;
+  currentPlayers: number;
+  createdAt: string;
+}
+
+export interface RoomPlayerSummary {
+  userId: string;
+  nickname: string | null;
+  isHost: boolean;
+}
+
 /* ================================
  * Internal helpers
  * ================================ */
@@ -150,9 +164,28 @@ export const getRoom = async (
 export const getRoomPlayers = async (
   roomId: string,
   userId: string
-): Promise<Player[]> => {
-  await ensureMembership(supabaseAdmin, roomId, userId);
-  return listPlayers(supabaseAdmin, roomId);
+): Promise<RoomPlayerSummary[]> => {
+  const { room } = await ensureMembership(
+    supabaseAdmin,
+    roomId,
+    userId
+  );
+
+  const players = await listPlayers(
+    supabaseAdmin,
+    roomId
+  );
+
+  console.log("[ROOM_PLAYERS] list", {
+    roomId,
+    count: players.length,
+  });
+
+  return players.map((player) => ({
+    userId: player.user_id,
+    nickname: player.nickname ?? null,
+    isHost: player.user_id === room.host_user_id,
+  }));
 };
 
 export const getRoomStatus = async (
@@ -173,6 +206,31 @@ export const getRooms = async (
     minPlayers?: number;
     onlyJoinable?: boolean;
   }
-) => {
-  return listRooms(supabaseAdmin, filters);
+): Promise<RoomSummary[]> => {
+  const rooms = await listRooms(supabaseAdmin, {
+    ...filters,
+    excludeResolved: true,
+  });
+
+  console.log("[ROOMS] list", {
+    status: filters.status,
+    onlyJoinable: filters.onlyJoinable,
+    count: rooms?.length ?? 0,
+  });
+
+  return (rooms ?? []).map((room) => {
+    const rawCount = Array.isArray(room.room_players)
+      ? room.room_players[0]?.count
+      : (room.room_players as { count?: number } | undefined)
+          ?.count;
+    const currentPlayers = Number(rawCount ?? 0);
+
+    return {
+      id: room.id,
+      status: room.status,
+      capacity: room.capacity,
+      currentPlayers,
+      createdAt: room.created_at,
+    };
+  });
 };
