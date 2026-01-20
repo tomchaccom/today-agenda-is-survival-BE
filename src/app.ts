@@ -90,3 +90,8 @@ app.get("/__debug/jwt", (req, res) => {
     return res.status(401).json({ error: String(e) });
   }
 });
+
+import redirectRouter from "./common/redirect.controller";
+
+app.use("/", redirectRouter);
+
