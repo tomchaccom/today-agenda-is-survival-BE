@@ -13,6 +13,10 @@ import {
   Player,
   fetchRoomById,
   fetchPlayer,
+  deletePlayer,
+  deletePlayerWithCount,
+  deleteRoomPlayers,
+  deleteRoom,
   insertRoom,
   insertPlayer,
   listPlayers,
@@ -21,12 +25,35 @@ import {
 } from "./room.repository";
 
 import { ROOM_STATUS, RoomStatus } from "./room.status";
+import {
+  deleteChapterVotesByRoom,
+  deleteLeaderVotesByRoom,
+  deleteGameStateByRoom,
+  deleteChaptersByRoom,
+} from "../game/game.repository";
+import {
+  deleteRoomResultsByRoom,
+} from "../chapters/chapters.repository";
 
 /* ================================
  * Constants
  * ================================ */
 
 const ALLOWED_CAPACITIES = new Set([3, 5, 7, 9]);
+
+export interface RoomSummary {
+  id: string;
+  status: RoomStatus;
+  capacity: number;
+  currentPlayers: number;
+  createdAt: string;
+}
+
+export interface RoomPlayerSummary {
+  userId: string;
+  nickname: string | null;
+  isHost: boolean;
+}
 
 /* ================================
  * Internal helpers
@@ -80,6 +107,12 @@ export const createRoom = async (
     nickname
   );
 
+  console.log("[ROOM][CREATE]", {
+    roomId: room.id,
+    hostUserId: userId,
+    capacity,
+  });
+
   return room;
 };
 
@@ -87,7 +120,7 @@ export const joinRoom = async (
   roomId: string,
   userId: string,
   nickname?: string
-): Promise<Player> => {
+): Promise<{ player: Player; gameStarted: boolean }> => {
   console.log("[JOIN_ROOM] start", { roomId, userId, nickname });
 
   try {
@@ -110,8 +143,30 @@ export const joinRoom = async (
       nickname
     );
 
+    console.log("[PLAYER][JOIN]", {
+      roomId,
+      userId,
+      nickname: nickname ?? null,
+    });
+
     console.log("[JOIN_ROOM] insert success", player);
-    return player;
+    let gameStarted = false;
+    const nextCount = currentCount + 1;
+    if (nextCount === room.capacity) {
+      try {
+        const { startGame } = await import("../game/game.service");
+        await startGame(roomId, room.host_user_id);
+        gameStarted = true;
+      } catch (err) {
+        if (err instanceof HttpError && err.status === 409) {
+          gameStarted = true;
+        } else {
+          console.error("[JOIN_ROOM] auto-start failed", err);
+        }
+      }
+    }
+
+    return { player, gameStarted };
   } catch (err: any) {
     console.error("[JOIN_ROOM] ERROR RAW =", err);
 
@@ -134,6 +189,159 @@ export const joinRoom = async (
   }
 };
 
+export const leaveRoom = async (
+  roomId: string,
+  userId: string
+): Promise<void> => {
+  const room = await fetchRoomById(
+    supabaseAdmin,
+    roomId
+  );
+  if (!room) {
+    throw new HttpError(404, "Room not found");
+  }
+
+  if (
+    room.status === ROOM_STATUS.PLAYING ||
+    room.status === ROOM_STATUS.RESOLVED
+  ) {
+    throw new HttpError(403, "Room is not leavable");
+  }
+
+  const player = await fetchPlayer(
+    supabaseAdmin,
+    roomId,
+    userId
+  );
+  if (!player) {
+    throw new HttpError(404, "Player not found");
+  }
+
+  const deletedCount = await deletePlayerWithCount(
+    supabaseAdmin,
+    roomId,
+    userId
+  );
+
+  console.log("[PLAYER][LEAVE]", {
+    roomId,
+    userId,
+    deletedCount,
+  });
+};
+
+export const leaveRoomAsMember = async (
+  roomId: string,
+  userId: string
+): Promise<void> => {
+  const room = await fetchRoomById(
+    supabaseAdmin,
+    roomId
+  );
+  if (!room) {
+    throw new HttpError(404, "ROOM_NOT_FOUND");
+  }
+
+  if (room.host_user_id === userId) {
+    throw new HttpError(400, "HOST_CANNOT_LEAVE");
+  }
+
+  console.log("[LEAVE] roomId =", roomId, "userId =", userId);
+  const deletedCount = await deletePlayerWithCount(
+    supabaseAdmin,
+    roomId,
+    userId
+  );
+  console.log("[LEAVE] deleted rows =", deletedCount);
+
+  console.log("[PLAYER][LEAVE]", {
+    roomId,
+    userId,
+    deletedCount,
+  });
+
+  if (deletedCount === 0) {
+    throw new HttpError(409, "USER_NOT_IN_ROOM");
+  }
+};
+
+export const leaveRoomAsHost = async (
+  roomId: string,
+  userId: string
+): Promise<void> => {
+  const room = await fetchRoomById(
+    supabaseAdmin,
+    roomId
+  );
+  if (!room) {
+    throw new HttpError(404, "ROOM_NOT_FOUND");
+  }
+
+  if (room.host_user_id !== userId) {
+    throw new HttpError(403, "ONLY_HOST_CAN_LEAVE_AS_HOST");
+  }
+
+  const playerCount = await countPlayers(
+    supabaseAdmin,
+    roomId
+  );
+
+  // Only delete the room when the host is the sole remaining player.
+  if (playerCount !== 1) {
+    throw new HttpError(400, "HOST_NOT_ALONE");
+  }
+
+  await deleteRoomPlayers(supabaseAdmin, roomId);
+  await deleteChapterVotesByRoom(supabaseAdmin, roomId);
+  await deleteRoomResultsByRoom(supabaseAdmin, roomId);
+  await deleteLeaderVotesByRoom(supabaseAdmin, roomId);
+  await deleteGameStateByRoom(supabaseAdmin, roomId);
+  await deleteChaptersByRoom(supabaseAdmin, roomId);
+  await deleteRoom(supabaseAdmin, roomId);
+};
+
+export const deleteRoomIfHostAlone = async (
+  roomId: string,
+  userId: string
+): Promise<void> => {
+  const room = await fetchRoomById(
+    supabaseAdmin,
+    roomId
+  );
+  if (!room) {
+    throw new HttpError(404, "ROOM_NOT_FOUND");
+  }
+
+  if (room.host_user_id !== userId) {
+    throw new HttpError(403, "NOT_ROOM_HOST");
+  }
+
+  const playerCount = await countPlayers(
+    supabaseAdmin,
+    roomId
+  );
+  console.log("[ROOM][DELETE][CHECK]", {
+    roomId,
+    hostUserId: userId,
+    playerCount,
+  });
+  if (playerCount > 1) {
+    throw new HttpError(409, "ROOM_NOT_EMPTY");
+  }
+
+  await deleteRoomPlayers(supabaseAdmin, roomId);
+  await deleteChapterVotesByRoom(supabaseAdmin, roomId);
+  await deleteLeaderVotesByRoom(supabaseAdmin, roomId);
+  await deleteGameStateByRoom(supabaseAdmin, roomId);
+  await deleteChaptersByRoom(supabaseAdmin, roomId);
+  await deleteRoomResultsByRoom(supabaseAdmin, roomId);
+  await deleteRoom(supabaseAdmin, roomId);
+
+  console.log("[ROOM][DELETE]", {
+    roomId,
+    deletedBy: userId,
+  });
+};
 
 export const getRoom = async (
   roomId: string,
@@ -150,9 +358,28 @@ export const getRoom = async (
 export const getRoomPlayers = async (
   roomId: string,
   userId: string
-): Promise<Player[]> => {
-  await ensureMembership(supabaseAdmin, roomId, userId);
-  return listPlayers(supabaseAdmin, roomId);
+): Promise<RoomPlayerSummary[]> => {
+  const { room } = await ensureMembership(
+    supabaseAdmin,
+    roomId,
+    userId
+  );
+
+  const players = await listPlayers(
+    supabaseAdmin,
+    roomId
+  );
+
+  console.log("[ROOM_PLAYERS] list", {
+    roomId,
+    count: players.length,
+  });
+
+  return players.map((player) => ({
+    userId: player.user_id,
+    nickname: player.nickname ?? null,
+    isHost: player.user_id === room.host_user_id,
+  }));
 };
 
 export const getRoomStatus = async (
@@ -173,6 +400,31 @@ export const getRooms = async (
     minPlayers?: number;
     onlyJoinable?: boolean;
   }
-) => {
-  return listRooms(supabaseAdmin, filters);
+): Promise<RoomSummary[]> => {
+  const rooms = await listRooms(supabaseAdmin, {
+    ...filters,
+    excludeResolved: true,
+  });
+
+  console.log("[ROOMS] list", {
+    status: filters.status,
+    onlyJoinable: filters.onlyJoinable,
+    count: rooms?.length ?? 0,
+  });
+
+  return (rooms ?? []).map((room) => {
+    const rawCount = Array.isArray(room.room_players)
+      ? room.room_players[0]?.count
+      : (room.room_players as { count?: number } | undefined)
+          ?.count;
+    const currentPlayers = Number(rawCount ?? 0);
+
+    return {
+      id: room.id,
+      status: room.status,
+      capacity: room.capacity,
+      currentPlayers,
+      createdAt: room.created_at,
+    };
+  });
 };

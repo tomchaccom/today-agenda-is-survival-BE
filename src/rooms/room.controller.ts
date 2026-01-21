@@ -3,10 +3,20 @@ import { Router, Request, Response } from "express";
 import { requireAuth } from "../auth/jwt.middleware";
 import { HttpError } from "../common/http-error";
 import {
+  emitRoomDeleted,
+  emitRoomListUpdated,
+  emitRoomPlayersUpdated,
+  getSocketServer,
+} from "../common/socket-events";
+import {
   createRoom,
   getRoom,
   getRoomPlayers,
   joinRoom,
+  leaveRoom,
+  leaveRoomAsMember,
+  leaveRoomAsHost,
+  deleteRoomIfHostAlone,
   getRooms,
 } from "./room.service";
 
@@ -147,6 +157,8 @@ router.post("/", requireAuth, async (req: Request, res: Response) => {
       capacity,
       nickname
     );
+
+    emitRoomListUpdated(getSocketServer(req), room.id);
     
 
     res.status(201).json({ room });
@@ -222,13 +234,18 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
       nickname,
     });
 
-    const player = await joinRoom(
+    const { player, gameStarted } = await joinRoom(
       roomId,
       req.user.userId,
       nickname
     );
 
     console.log("[JOIN] joinRoom success =", player);
+
+    emitRoomPlayersUpdated(getSocketServer(req), roomId);
+    if (gameStarted) {
+      emitRoomListUpdated(getSocketServer(req), roomId);
+    }
 
     res.status(201).json({ player });
   } catch (error) {
@@ -237,6 +254,97 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
     const status = error instanceof HttpError ? error.status : 500;
     res.status(status).json({
       error: (error as Error)?.message ?? "Internal Server Error",
+    });
+  }
+});
+
+router.delete("/:roomId/players/me", requireAuth, async (req, res) => {
+  try {
+    assertAuthenticated(req);
+    const roomId = requireParam(req.params.roomId, "roomId");
+
+    await leaveRoom(roomId, req.user.userId);
+
+    emitRoomPlayersUpdated(getSocketServer(req), roomId);
+
+    res.status(200).json({ ok: true });
+  } catch (error) {
+    const status = error instanceof HttpError ? error.status : 500;
+    res.status(status).json({ error: (error as Error).message });
+  }
+});
+
+router.post("/:roomId/leave", requireAuth, async (req, res) => {
+  try {
+    assertAuthenticated(req);
+    const roomId = requireParam(req.params.roomId, "roomId");
+
+    await leaveRoomAsMember(roomId, req.user.userId);
+
+    emitRoomPlayersUpdated(getSocketServer(req), roomId);
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    if (error instanceof HttpError) {
+      return res
+        .status(error.status)
+        .json({ error: error.message, code: error.message });
+    }
+    res.status(500).json({
+      error: "Internal Server Error",
+      code: "INTERNAL_SERVER_ERROR",
+    });
+  }
+});
+
+router.post("/:roomId/leave-as-host", requireAuth, async (req, res) => {
+  try {
+    assertAuthenticated(req);
+    const roomId = requireParam(req.params.roomId, "roomId");
+
+    await leaveRoomAsHost(roomId, req.user.userId);
+
+    const io = getSocketServer(req);
+    emitRoomPlayersUpdated(io, roomId);
+    emitRoomDeleted(io, roomId);
+    emitRoomListUpdated(io, roomId);
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    if (error instanceof HttpError) {
+      return res
+        .status(error.status)
+        .json({ error: error.message, code: error.message });
+    }
+    res.status(500).json({
+      error: "Internal Server Error",
+      code: "INTERNAL_SERVER_ERROR",
+    });
+  }
+});
+
+router.delete("/:roomId", requireAuth, async (req, res) => {
+  try {
+    assertAuthenticated(req);
+    const roomId = requireParam(req.params.roomId, "roomId");
+
+    await deleteRoomIfHostAlone(roomId, req.user.userId);
+
+    const io = getSocketServer(req);
+    emitRoomPlayersUpdated(io, roomId);
+    emitRoomDeleted(io, roomId);
+    emitRoomListUpdated(io, roomId);
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    if (error instanceof HttpError) {
+      return res
+        .status(error.status)
+        .json({ error: error.message, code: error.message });
+    }
+    res.status(500).json({
+      error: "Internal Server Error",
+      code: "INTERNAL_SERVER_ERROR",
     });
   }
 });
@@ -252,10 +360,20 @@ router.get("/test-auth", requireAuth, (req: Request, res: Response) => {
   }
 });
 
-router.get("/", requireAuth, (req: Request, res: Response) => {
+router.get("/", requireAuth, async (req: Request, res: Response) => {
   try {
     assertAuthenticated(req);
-    res.status(200).json({ ok: true });
+    const { status, minPlayers, onlyJoinable } = req.query;
+
+    console.log("[ROOMS] params =", req.query);
+
+    const rooms = await getRooms(req.user.userId, {
+      status: typeof status === "string" ? status : undefined,
+      minPlayers: minPlayers ? Number(minPlayers) : undefined,
+      onlyJoinable: onlyJoinable === "true",
+    });
+
+    res.status(200).json({ rooms });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
     res.status(status).json({ error: (error as Error).message });
@@ -292,6 +410,9 @@ router.get("/", requireAuth, (req: Request, res: Response) => {
 
 router.get("/:roomId", requireAuth, async (req, res) => {
   try {
+    console.log("[ROOM] cookies =", (req as Request & { cookies?: unknown }).cookies);
+    console.log("[ROOM] user =", req.user);
+    console.log("[ROOM] authToken =", req.authToken);
     assertAuthenticated(req);
     const roomId = requireParam(req.params.roomId, "roomId");
 
@@ -346,29 +467,11 @@ router.get("/:roomId/players", requireAuth, async (req, res) => {
       roomId,
       req.user.userId
     );
-    
-    
 
     res.status(200).json({ players });
   } catch (error) {
     const status = error instanceof HttpError ? error.status : 500;
     res.status(status).json({ error: (error as Error).message });
-  }
-});
-
-router.get("/", async (req, res) => {
-  try {
-    const { status, minPlayers, onlyJoinable } = req.query;
-
-    const rooms = await getRooms(null, {
-      status: typeof status === "string" ? status : undefined,
-      minPlayers: minPlayers ? Number(minPlayers) : undefined,
-      onlyJoinable: onlyJoinable === "true",
-    });
-
-    res.json({ rooms });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch rooms" });
   }
 });
 

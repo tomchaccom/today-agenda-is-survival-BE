@@ -379,3 +379,72 @@ export const applyFinalResolution = async (
 
   if (error) throw error;
 };
+
+export const deleteChapterVotesByRoom = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("chapter_votes")
+    .delete()
+    .eq("room_id", roomId);
+
+  if (error) throw error;
+};
+
+export const deleteLeaderVotesByRoom = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("leader_votes")
+    .delete()
+    .eq("room_id", roomId);
+
+  if (error) throw error;
+};
+
+export const deleteGameStateByRoom = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("game_state")
+    .delete()
+    .eq("room_id", roomId);
+
+  if (error) throw error;
+};
+
+export const deleteChaptersByRoom = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("chapters")
+    .delete()
+    .eq("room_id", roomId);
+
+  if (error) throw error;
+};
+
+export const deleteGameDataForRoom = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const deletes = [
+    "chapter_votes",
+    "chapter_resolutions",
+    "leader_votes",
+    "chapters",
+    "game_state",
+  ] as const;
+
+  for (const table of deletes) {
+    const { error } = await client
+      .from(table)
+      .delete()
+      .eq("room_id", roomId);
+    if (error) throw error;
+  }
+};

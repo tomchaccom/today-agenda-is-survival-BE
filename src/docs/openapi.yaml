@@ -1,0 +1,1102 @@
+openapi: 3.0.3
+info:
+  title: Today Agenda Is Survival API
+  version: 1.0.0
+  description: |
+    프론트엔드가 현재 백엔드 로직을 한눈에 파악할 수 있도록
+    실제 컨트롤러/서비스 구현 기준으로 정리한 API 명세입니다.
+servers:
+  - url: http://localhost:4000
+    description: Local server
+  - url: https://qltkek.shop
+    description: Production server
+
+tags:
+  - name: Auth
+    description: 인증/로그인
+  - name: Room
+    description: 방 생성/참여/조회
+  - name: Game
+    description: 게임 시작 및 상태
+  - name: Chapter
+    description: 챕터/스토리 진행
+  - name: Vote
+    description: 투표 관련
+  - name: Final
+    description: 최종 결과 처리
+  - name: Leaderboard
+    description: 리더보드
+  - name: ChaptersLegacy
+    description: rooms + chapters 모듈 기반(legacy) 질문 플로우
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Unauthorized"
+
+    Choice:
+      type: string
+      enum: [A, B]
+      example: A
+
+    HealthResponse:
+      type: string
+      example: ok
+
+    Room:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "room-uuid"
+        host_user_id:
+          type: string
+          example: "user-uuid"
+        status:
+          type: string
+          example: WAITING
+        capacity:
+          type: integer
+          example: 5
+        created_at:
+          type: string
+          format: date-time
+
+    RoomListItem:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "room-uuid"
+        status:
+          type: string
+          example: WAITING
+        capacity:
+          type: integer
+          example: 5
+        current_qnum:
+          type: integer
+          nullable: true
+          example: 2
+        host_user_id:
+          type: string
+          example: "user-uuid"
+        created_at:
+          type: string
+          format: date-time
+        room_players:
+          type: object
+          properties:
+            count:
+              type: integer
+              example: 3
+
+    Player:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "player-uuid"
+        room_id:
+          type: string
+          example: "room-uuid"
+        user_id:
+          type: string
+          example: "user-uuid"
+        nickname:
+          type: string
+          nullable: true
+          example: "방장"
+        score:
+          type: number
+          format: float
+          example: 1.2
+        joined_at:
+          type: string
+          format: date-time
+
+    CreateRoomRequest:
+      type: object
+      required: [capacity, nickname]
+      properties:
+        capacity:
+          type: integer
+          description: 허용 값: 3, 5, 7, 9
+          example: 5
+        nickname:
+          type: string
+          example: "방장"
+
+    JoinRoomRequest:
+      type: object
+      required: [nickname]
+      properties:
+        nickname:
+          type: string
+          example: "참가자1"
+
+    AuthTokens:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+
+    AuthMeResponse:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: "user-uuid"
+        email:
+          type: string
+          example: "user@example.com"
+
+    GameState:
+      type: object
+      properties:
+        room_id:
+          type: string
+          example: "room-uuid"
+        phase:
+          type: string
+          enum: [IN_PROGRESS, FINAL_VOTE, FINISHED]
+        current_chapter_order:
+          type: integer
+          nullable: true
+          example: 2
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    Chapter:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "chapter-uuid"
+        room_id:
+          type: string
+          example: "room-uuid"
+        order:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: "Expedition Selection"
+        description:
+          type: string
+          example: "재원을 다시 원정대로 보내야 할까?"
+        option_a_label:
+          type: string
+          example: "능력 기반 재파견 (Seongyeol)"
+        option_b_label:
+          type: string
+          example: "추첨/순환 시스템 (Jaemyeon)"
+
+    VoteRequest:
+      type: object
+      required: [choice]
+      properties:
+        choice:
+          $ref: "#/components/schemas/Choice"
+
+    ChapterVote:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "vote-uuid"
+        room_id:
+          type: string
+          example: "room-uuid"
+        chapter_id:
+          type: string
+          example: "chapter-uuid"
+        user_id:
+          type: string
+          example: "user-uuid"
+        choice:
+          $ref: "#/components/schemas/Choice"
+
+    LeaderVote:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "leader-vote-uuid"
+        room_id:
+          type: string
+          example: "room-uuid"
+        voter_user_id:
+          type: string
+          example: "user-uuid"
+        choice:
+          $ref: "#/components/schemas/Choice"
+        weight:
+          type: number
+          format: float
+          example: 1.2
+        created_at:
+          type: string
+          format: date-time
+
+    LeaderVoteRequest:
+      type: object
+      required: [choice]
+      properties:
+        choice:
+          $ref: "#/components/schemas/Choice"
+          description: "A = Seongyeol, B = Jaemyeon"
+
+    FinalResolveResponse:
+      type: object
+      properties:
+        leader:
+          type: string
+          enum: [SEONGYEOL, JAEMYEON]
+        mvp:
+          type: object
+          properties:
+            userId:
+              type: string
+            nickname:
+              type: string
+              nullable: true
+            score:
+              type: number
+              format: float
+
+    FinalResultResponse:
+      type: object
+      properties:
+        leader:
+          type: string
+          enum: [SEONGYEOL, JAEMYEON]
+        totals:
+          type: object
+          properties:
+            A:
+              type: number
+              format: float
+            B:
+              type: number
+              format: float
+
+    Question:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 12
+        chapter:
+          type: integer
+          example: 3
+        qnum:
+          type: integer
+          example: 7
+        is_final:
+          type: boolean
+          example: false
+        content:
+          type: string
+          example: "질문 내용"
+
+    LegacyResolveChapterResponse:
+      oneOf:
+        - type: object
+          properties:
+            ok:
+              type: boolean
+            type:
+              type: string
+              enum: [chapter]
+            roomId:
+              type: string
+            question:
+              $ref: "#/components/schemas/Question"
+            votes:
+              type: object
+              properties:
+                a:
+                  type: integer
+                b:
+                  type: integer
+            winner:
+              type: string
+              enum: [A, B]
+            reward:
+              type: number
+              format: float
+            next_qnum:
+              type: integer
+        - type: object
+          properties:
+            ok:
+              type: boolean
+            type:
+              type: string
+              enum: [final]
+            roomId:
+              type: string
+            question:
+              $ref: "#/components/schemas/Question"
+            votes:
+              type: object
+              properties:
+                a_count:
+                  type: integer
+                b_count:
+                  type: integer
+            average_score:
+              type: object
+              properties:
+                a:
+                  type: number
+                  format: float
+                b:
+                  type: number
+                  format: float
+            winner:
+              type: string
+              enum: [A, B]
+            room_status:
+              type: string
+              example: resolved
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /__debug/jwt:
+    get:
+      summary: JWT 디코딩 확인 (디버그)
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 디코딩 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                  decoded:
+                    type: object
+        "400":
+          description: Bearer 토큰 누락
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: 토큰 검증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/google:
+    get:
+      summary: Google OAuth 시작
+      tags: [Auth]
+      responses:
+        "302":
+          description: Google 인증 페이지로 리다이렉트
+          headers:
+            Location:
+              schema:
+                type: string
+
+  /auth/google/callback:
+    get:
+      summary: Google OAuth 콜백
+      tags: [Auth]
+      description: |
+        성공 시 access_token/refresh_token 쿠키를 세팅하고
+        프론트(/play)로 이동하는 HTML을 반환합니다.
+      responses:
+        "200":
+          description: HTML 응답
+          content:
+            text/html:
+              schema:
+                type: string
+        "400":
+          description: 잘못된 code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: 서버 오류
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/dev/login:
+    post:
+      summary: 개발용 로그인 (프로덕션 차단)
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  example: "user@example.com"
+      responses:
+        "200":
+          description: 토큰 발급
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthTokens"
+        "400":
+          description: 이메일 누락
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 유저 없음 또는 프로덕션 차단
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      summary: 내 정보 조회
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 인증된 유저 정보
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthMeResponse"
+        "401":
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rooms:
+    post:
+      summary: 방 생성
+      tags: [Room]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoomRequest"
+      responses:
+        "201":
+          description: 방 생성 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: "#/components/schemas/Room"
+        "401":
+          description: 인증 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: 잘못된 capacity/nickname
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      summary: 방 목록 조회
+      tags: [Room]
+      description: |
+        현재 코드에는 동일한 GET /rooms 라우트가 두 개 존재합니다.
+        상단 라우트가 먼저 응답할 경우 { ok: true }가 반환될 수 있으니
+        프론트에서 실제 응답을 확인해주세요.
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: 상태 필터 (예: WAITING, PLAYING, FINISHED)
+        - in: query
+          name: minPlayers
+          schema:
+            type: integer
+          description: 최소 참가자 수
+        - in: query
+          name: onlyJoinable
+          schema:
+            type: boolean
+          description: true면 WAITING 상태만
+      responses:
+        "200":
+          description: 방 목록
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rooms:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RoomListItem"
+        "500":
+          description: 조회 실패
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rooms/{roomId}/join:
+    post:
+      summary: 방 참여
+      tags: [Room]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinRoomRequest"
+      responses:
+        "201":
+          description: 방 참여 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  player:
+                    $ref: "#/components/schemas/Player"
+        "409":
+          description: 중복 참가/방 꽉참/상태 불가
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rooms/{roomId}:
+    get:
+      summary: 방 상세 조회
+      tags: [Room]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 방 정보
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  room:
+                    $ref: "#/components/schemas/Room"
+        "403":
+          description: 멤버가 아닐 때
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: 방 없음
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rooms/{roomId}/players:
+    get:
+      summary: 방 참여자 목록 조회
+      tags: [Room]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 참여자 리스트
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  players:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Player"
+
+  /rooms/{roomId}/game/start:
+    post:
+      summary: 게임 시작
+      tags: [Game]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 시작 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state:
+                    $ref: "#/components/schemas/GameState"
+        "403":
+          description: 방장이 아님
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: 조건 불충족 (인원수/상태)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rooms/{roomId}/game/state:
+    get:
+      summary: 게임 상태 조회
+      tags: [Game]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 현재 게임 상태
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state:
+                    $ref: "#/components/schemas/GameState"
+        "409":
+          description: 게임 미시작
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rooms/{roomId}/chapters:
+    get:
+      summary: 챕터 목록 조회
+      tags: [Chapter]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 챕터 리스트
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chapters:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Chapter"
+
+  /rooms/{roomId}/chapters/current:
+    get:
+      summary: 현재 챕터 조회 (game 모듈)
+      tags: [Chapter]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 현재 챕터
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chapter:
+                    $ref: "#/components/schemas/Chapter"
+
+  /rooms/{roomId}/chapters/{chapterId}/vote:
+    post:
+      summary: 챕터 투표
+      tags: [Vote]
+      description: |
+        이 API는 투표만 저장합니다.
+        ⚠️ 결과 확정은 방장이 /rooms/{roomId}/chapters/{chapterId}/resolve 를 호출해야 합니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: chapterId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoteRequest"
+      responses:
+        "201":
+          description: 투표 완료
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vote:
+                    $ref: "#/components/schemas/ChapterVote"
+        "409":
+          description: 중복 투표/진행 불가
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rooms/{roomId}/chapters/{chapterId}/resolve:
+    post:
+      summary: 챕터 결과 확정 (방장 전용)
+      tags: [Chapter]
+      description: |
+        🔒 방장 전용 엔드포인트입니다.
+        챕터 투표를 집계하고 다음 챕터 또는 FINAL_VOTE 단계로 진행합니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: chapterId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 게임 상태 업데이트
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state:
+                    $ref: "#/components/schemas/GameState"
+
+  /rooms/{roomId}/chapters/{chapterId}/votes:
+    get:
+      summary: 챕터 투표 목록 조회
+      tags: [Vote]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: chapterId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 투표 목록
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  votes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChapterVote"
+
+  /rooms/{roomId}/final/leader-vote:
+    post:
+      summary: 리더 투표
+      tags: [Final]
+      description: |
+        이 API는 리더 투표만 저장합니다.
+        ⚠️ 최종 결과 확정은 방장이 /rooms/{roomId}/final/resolve 를 호출해야 합니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaderVoteRequest"
+      responses:
+        "201":
+          description: 리더 투표 완료
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  vote:
+                    $ref: "#/components/schemas/LeaderVote"
+        "409":
+          description: 중복 투표/FINAL 단계 아님
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rooms/{roomId}/final/resolve:
+    post:
+      summary: 최종 결과 확정 (방장 전용)
+      tags: [Final]
+      description: |
+        🔒 방장 전용 엔드포인트입니다.
+        리더(가중치 합산)와 MVP를 확정하고 게임 상태를 FINISHED로 변경합니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 최종 결과
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinalResolveResponse"
+
+  /rooms/{roomId}/final/result:
+    get:
+      summary: 최종 결과 조회
+      tags: [Final]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 최종 결과
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinalResultResponse"
+        "409":
+          description: 게임 미종료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /rooms/{roomId}/leaderboard:
+    get:
+      summary: 리더보드 조회
+      tags: [Leaderboard]
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 점수 내림차순 리스트
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  players:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Player"
+
+  /rooms/{roomId}/chapters/resolve:
+    post:
+      summary: (Legacy) 챕터 결과 확정
+      tags: [ChaptersLegacy]
+      description: |
+        chapters.controller 기반 legacy 엔드포인트입니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 챕터 또는 FINAL 결과
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyResolveChapterResponse"
+
+  /rooms/{roomId}/chapters/current:
+    get:
+      summary: (Legacy) 현재 질문 조회
+      tags: [ChaptersLegacy]
+      description: chapters.controller 기반 legacy 엔드포인트입니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: 현재 질문
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Question"
+
+  /rooms/{roomId}/chapters/{questionId}/vote:
+    post:
+      summary: (Legacy) 현재 질문 투표
+      tags: [ChaptersLegacy]
+      description: chapters.controller 기반 legacy 엔드포인트입니다.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: roomId
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: questionId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [A, B]
+      responses:
+        "201":
+          description: 투표 완료
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true

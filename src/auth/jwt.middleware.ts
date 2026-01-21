@@ -42,18 +42,18 @@ export const requireAuth = (
   res: Response,
   next: NextFunction
 ) => {
-  const authHeader =
-    typeof req.headers.authorization === "string"
-      ? req.headers.authorization
-      : undefined;
-
-  if (!authHeader?.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Missing Bearer token" });
-  }
-
-  const token = authHeader.slice("Bearer ".length).trim();
+  console.log("[AUTH] cookies =", (req as Request & { cookies?: unknown }).cookies);
+  console.log("[AUTH] auth header =", req.headers.authorization);
+  console.log(
+    "[AUTH] access_token =",
+    (req as Request & { cookies?: { access_token?: string } }).cookies
+      ?.access_token
+  );
+  const token = (
+    req as Request & { cookies?: { access_token?: string } }
+  ).cookies?.access_token;
   if (!token) {
-    return res.status(401).json({ error: "Missing Bearer token" });
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   try {

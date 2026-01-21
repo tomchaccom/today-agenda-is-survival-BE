@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-  "dev": "NODE_ENV=development ts-node-dev --respawn --transpile-only --project tsconfig.json src/server.ts",
-  "build": "tsc",
-  "start": "NODE_ENV=production node dist/server.js"
+    "dev": "NODE_ENV=development ts-node-dev --respawn --transpile-only --project tsconfig.json src/server.ts",
+    "build": "tsc",
+    "start": "NODE_ENV=production node dist/server.js"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +15,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
     "axios": "^1.13.2",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
@@ -23,6 +24,7 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",

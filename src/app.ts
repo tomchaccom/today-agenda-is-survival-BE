@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import swaggerUi from "swagger-ui-express";
 import dotenv from "dotenv";
 
@@ -22,6 +23,7 @@ const app = express();
    Middleware
 ======================== */
 app.use(express.json());
+app.use(cookieParser());
 
 app.use(
   cors({
@@ -88,3 +90,8 @@ app.get("/__debug/jwt", (req, res) => {
     return res.status(401).json({ error: String(e) });
   }
 });
+
+import redirectRouter from "./common/redirect.controller";
+
+app.use("/", redirectRouter);
+

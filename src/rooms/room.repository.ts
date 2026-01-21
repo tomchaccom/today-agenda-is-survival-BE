@@ -136,6 +136,14 @@ export const insertPlayer = async (
     .single();
 
   if (error) {
+    if (error.code === "23505") {
+      throw new HttpError(409, "Already joined");
+    }
+
+    if (error.code === "23503") {
+      throw new HttpError(400, "Invalid room or user");
+    }
+
     throw new HttpError(
       500,
       error.message || "Failed to insert player"
@@ -164,6 +172,64 @@ export const listPlayers = async (
   return data ?? [];
 };
 
+export const deletePlayer = async (
+  client: SupabaseClient,
+  roomId: string,
+  userId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("room_players")
+    .delete()
+    .eq("room_id", roomId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to delete player"
+    );
+  }
+};
+
+export const deletePlayerWithCount = async (
+  client: SupabaseClient,
+  roomId: string,
+  userId: string
+): Promise<number> => {
+  const { error, count } = await client
+    .from("room_players")
+    .delete({ count: "exact" })
+    .eq("room_id", roomId)
+    .eq("user_id", userId);
+
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to delete player"
+    );
+  }
+
+  return count ?? 0;
+};
+
+
+export const deleteRoomPlayers = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("room_players")
+    .delete()
+    .eq("room_id", roomId);
+
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to delete room players"
+    );
+  }
+};
+
 export const countPlayers = async (
   client: SupabaseClient,
   roomId: string
@@ -183,6 +249,23 @@ export const countPlayers = async (
   return data.length;
 };
 
+export const deleteRoom = async (
+  client: SupabaseClient,
+  roomId: string
+): Promise<void> => {
+  const { error } = await client
+    .from("rooms")
+    .delete()
+    .eq("id", roomId);
+
+  if (error) {
+    throw new HttpError(
+      500,
+      error.message || "Failed to delete room"
+    );
+  }
+};
+
 
 export const listRooms = async (
   client: SupabaseClient,
@@ -190,6 +273,7 @@ export const listRooms = async (
     status?: string;
     minPlayers?: number;
     onlyJoinable?: boolean;
+    excludeResolved?: boolean;
   }
 ) => {
   let query = client
@@ -209,7 +293,11 @@ export const listRooms = async (
   }
 
   if (filters.onlyJoinable) {
-    query = query.eq("status", "WAITING");
+    query = query.eq("status", ROOM_STATUS.WAITING);
+  }
+
+  if (filters.excludeResolved) {
+    query = query.neq("status", ROOM_STATUS.RESOLVED);
   }
 
   if (filters.minPlayers) {
