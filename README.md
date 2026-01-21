@@ -12,10 +12,39 @@ https://github.com/user-attachments/assets/2a3eb4e3-e1ef-45bc-b8b7-259fa80acd3d
 
 ## Tech Stack
 
+### Backend
 - **Node.js** (TypeScript)
 - **Supabase** (PostgreSQL)
-- **GitHub Actions** (CI/CD)
-- **AWS EC2** (배포/런타임)
+
+### Authentication
+- **Google OAuth 2.0**
+  - Authorization Code Flow 기반 인증
+  - Google 계정 로그인
+  - JWT 기반 Access / Refresh Token 발급
+
+### Infrastructure
+- **AWS EC2**
+  - Node.js API 서버 운영
+  - PM2 기반 프로세스 관리
+- **Nginx**
+  - Reverse Proxy 구성
+  - API 서버 포트 은닉
+  - HTTPS 트래픽 처리
+
+### Security & Domain
+- **Custom Domain**
+  - 서비스 전용 도메인 직접 구매 및 연결
+- **Certbot (Let's Encrypt)**
+  - SSL 인증서 발급 및 적용
+  - HTTPS 자동 갱신 설정
+  - OAuth 및 쿠키 보안 정책 대응
+
+### CI / CD
+- **GitHub Actions**
+  - main 브랜치 push 시 자동 빌드
+  - EC2 서버로 배포
+  - PM2 프로세스 재시작 
+
 
 ---
 
