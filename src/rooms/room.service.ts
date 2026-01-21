@@ -120,7 +120,7 @@ export const joinRoom = async (
   roomId: string,
   userId: string,
   nickname?: string
-): Promise<Player> => {
+): Promise<{ player: Player; gameStarted: boolean }> => {
   console.log("[JOIN_ROOM] start", { roomId, userId, nickname });
 
   try {
@@ -150,7 +150,23 @@ export const joinRoom = async (
     });
 
     console.log("[JOIN_ROOM] insert success", player);
-    return player;
+    let gameStarted = false;
+    const nextCount = currentCount + 1;
+    if (nextCount === room.capacity) {
+      try {
+        const { startGame } = await import("../game/game.service");
+        await startGame(roomId, room.host_user_id);
+        gameStarted = true;
+      } catch (err) {
+        if (err instanceof HttpError && err.status === 409) {
+          gameStarted = true;
+        } else {
+          console.error("[JOIN_ROOM] auto-start failed", err);
+        }
+      }
+    }
+
+    return { player, gameStarted };
   } catch (err: any) {
     console.error("[JOIN_ROOM] ERROR RAW =", err);
 

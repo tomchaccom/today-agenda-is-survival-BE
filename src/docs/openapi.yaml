@@ -1017,13 +1017,12 @@ paths:
                     items:
                       $ref: "#/components/schemas/Player"
 
-  /rooms/rooms/{roomId}/chapters/resolve:
+  /rooms/{roomId}/chapters/resolve:
     post:
       summary: (Legacy) 챕터 결과 확정
       tags: [ChaptersLegacy]
       description: |
-        chapters.controller는 app.use("/rooms", router)로 마운트되어
-        실제 호출 경로는 /rooms/rooms/{roomId}/chapters/resolve 입니다.
+        chapters.controller 기반 legacy 엔드포인트입니다.
       security:
         - bearerAuth: []
       parameters:
@@ -1040,11 +1039,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/LegacyResolveChapterResponse"
 
-  /rooms/rooms/{roomId}/chapters/current:
+  /rooms/{roomId}/chapters/current:
     get:
       summary: (Legacy) 현재 질문 조회
       tags: [ChaptersLegacy]
-      description: app.use("/rooms") 마운트로 인해 /rooms/rooms 경로
+      description: chapters.controller 기반 legacy 엔드포인트입니다.
       security:
         - bearerAuth: []
       parameters:
@@ -1061,11 +1060,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/Question"
 
-  /rooms/rooms/{roomId}/chapters/{questionId}/vote:
+  /rooms/{roomId}/chapters/{questionId}/vote:
     post:
       summary: (Legacy) 현재 질문 투표
       tags: [ChaptersLegacy]
-      description: app.use("/rooms") 마운트로 인해 /rooms/rooms 경로
+      description: chapters.controller 기반 legacy 엔드포인트입니다.
       security:
         - bearerAuth: []
       parameters:
@@ -1078,7 +1077,7 @@ paths:
           name: questionId
           required: true
           schema:
-            type: integer
+            type: string
       requestBody:
         required: true
         content:

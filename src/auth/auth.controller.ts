@@ -99,7 +99,6 @@ router.get("/google/callback", async (req, res) => {
        ✅ OAuth 쿠키 옵션 (단 하나)
        =============================== */
     const cookieOptions = {
-      domain: ".qltkek.shop",
       path: "/",
       secure: true,
       sameSite: "none" as const,

@@ -2,7 +2,7 @@ name: Node Server CD
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master2" ]
 
 jobs:
   deploy:

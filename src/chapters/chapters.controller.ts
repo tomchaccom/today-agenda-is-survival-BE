@@ -12,13 +12,13 @@ import {
 const router = Router();
 
 /**
- * POST /rooms/:roomId/chapters/resolve
+ * POST /:roomId/chapters/resolve
  * - 현재 챕터 투표 결과를 집계
  * - 일반 챕터: 다수결 → 점수 지급 → 다음 qnum
  * - FINAL 단계: leader_votes 집계 → room_results 저장 → 방 종료
  */
 router.post(
-  "/rooms/:roomId/chapters/resolve",
+  "/:roomId/chapters/resolve",
   requireAuth,
   async (req: Request, res: Response) => {
     try {
@@ -57,7 +57,7 @@ export default router;
  *       - bearerAuth: []
  */
 router.get(
-  "/rooms/:roomId/chapters/current",
+  "/:roomId/chapters/current",
   requireAuth,
   async (req, res) => {
     try {
@@ -88,7 +88,7 @@ router.get(
  *       - bearerAuth: []
  */
 router.post(
-  "/rooms/:roomId/chapters/:questionId/vote",
+  "/:roomId/chapters/:questionId/vote",
   requireAuth,
   async (req, res) => {
     try {

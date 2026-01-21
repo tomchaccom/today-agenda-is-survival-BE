@@ -234,7 +234,7 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
       nickname,
     });
 
-    const player = await joinRoom(
+    const { player, gameStarted } = await joinRoom(
       roomId,
       req.user.userId,
       nickname
@@ -243,6 +243,9 @@ router.post("/:roomId/join", requireAuth, async (req, res) => {
     console.log("[JOIN] joinRoom success =", player);
 
     emitRoomPlayersUpdated(getSocketServer(req), roomId);
+    if (gameStarted) {
+      emitRoomListUpdated(getSocketServer(req), roomId);
+    }
 
     res.status(201).json({ player });
   } catch (error) {
